@@ -18,6 +18,8 @@
 - `grocery.items`의 `added_by`·`bought_by`는 가계부 구성원을 참조하되 `on delete set null`이다(D-007). 장보기 데이터가 가계부의 구성원·계정 삭제를 막지 않고, 떠난 구성원이 담은 품목은 이름 없이 남는다. 새 행은 RLS가 `added_by` = 본인을 강제한다.
 - 장보기 스키마(`grocery`)와 RLS는 `supabase/migrations/`에 있고 PGlite 테스트로 검증한다. 공유 DB 적용과 Exposed schemas 추가는 사용자 확인 후 한다.
 - 가구·구성원은 가계부의 테이블을 그대로 쓴다. 아래 초안의 `households`, `household_members`는 새로 만들지 않는다.
+- 공유 DB에 마이그레이션을 적용하는 방법은 두 저장소(가계부·장보기) 모두 Supabase MCP의 `apply_migration` 하나뿐이다. 어느 쪽도 `supabase db push`를 쓰지 않는다(한쪽 저장소의 마이그레이션 목록만 보고 다른 쪽 적용분을 되돌리거나 어긋나게 할 수 있다).
+- Realtime: `grocery.items`의 INSERT·UPDATE는 `household_id` 필터로 구독하지만, DELETE는 Supabase가 필터를 지원하지 않아 필터 없이 구독한다. 그래서 공유 프로젝트에 로그인한 사용자는 어느 가구의 삭제든 지워진 행의 `id`만 받는다(행 내용은 오지 않는다). 앱은 이 이벤트를 받으면 자기 가구 목록을 다시 읽을 뿐이다.
 
 ## 데이터 흐름
 
