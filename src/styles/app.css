@@ -4,7 +4,7 @@ body { font-size: 16px; line-height: 1.5; }
 h1 { font-size: 22px; font-weight: 700; margin: 0; }
 
 .auth { max-width: 400px; margin: 0 auto; padding: 64px var(--gutter) 40px; display: flex; flex-direction: column; gap: 16px; }
-.auth-lead { margin: 0; color: var(--ink-muted); }
+.auth-lead { margin: 0; color: var(--ink-muted); word-break: keep-all; text-wrap: pretty; }
 .auth-form { display: flex; flex-direction: column; gap: 16px; }
 .auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--ink-muted); }
 .auth-form input {
@@ -138,6 +138,9 @@ button { touch-action: manipulation; -webkit-user-select: none; user-select: non
   background: var(--clay); color: var(--on-ink); font-size: 15px; font-weight: 700;
 }
 .row-remove:focus-visible { outline: 2px solid var(--on-ink); outline-offset: -4px; }
+/* 묶음의 둥근 모서리에 닿는 줄은 버튼 모서리도 같이 둥글게: 안쪽 포커스 테두리가 모서리에서 잘려 보이지 않게 */
+.row:first-child .row-remove { border-top-right-radius: var(--r-group); }
+.row:last-child .row-remove { border-bottom-right-radius: var(--r-group); }
 /* 닫혀 있을 때는 숨겨 둔다(둥근 모서리 가장자리로 흙빛이 비치지 않게). 키보드 포커스가 오면 보인다. */
 .row:not(.is-open):not(.is-swiping) .row-remove { opacity: 0; }
 

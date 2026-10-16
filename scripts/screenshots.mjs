@@ -10,18 +10,33 @@ mkdirSync(OUT, { recursive: true })
 
 const SIZES = { 390: { width: 390, height: 844 }, 1280: { width: 1280, height: 800 } }
 
+const BOTH = ['light', 'dark']
+const SHEET_TEXT = '비비고 왕교자 1.05kg x2\n우유 900ml\n대파\n고추장 500g\n휴지 30롤'
+// 쇼핑몰 상품명을 통째로 붙여 넣은 경우(60자 넘음): "이름이 길어 60자까지만 담아요"가 보여야 한다.
+const LONG_LINE = '[무료배송] 풀무원 국산콩 두부 부침용 300g 2개입 + 찌개용 300g 2개입 냉장 신선 묶음 기획 특가 세트'
 const shots = [
-  ...[390, 1280].flatMap((w) => ['light', 'dark'].map((c) => ({ name: `list-${w}-${c}`, path: '/?demo=1', w, c, full: true }))),
-  ...['light', 'dark'].map((c) => ({ name: `add-sheet-390-${c}`, path: '/?demo=1', w: 390, c, sheet: true })),
-  { name: 'list-where-390-light', path: '/?demo=1', w: 390, c: 'light', where: true, full: true },
-  ...[390, 1280].flatMap((w) => ['light', 'dark'].map((c) => ({ name: `login-${w}-${c}`, path: '/?demo=login&error=1', w, c }))),
-  ...['light', 'dark'].map((c) => ({ name: `no-household-390-${c}`, path: '/?demo=nohousehold', w: 390, c })),
+  ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `list-${w}-${c}`, path: '/?demo=1', w, c, full: true }))),
+  ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `add-sheet-${w}-${c}`, path: '/?demo=1', w, c, sheet: SHEET_TEXT }))),
+  { name: 'add-sheet-long-390-light', path: '/?demo=1', w: 390, c: 'light', sheet: `${LONG_LINE}\n대파` },
+  ...BOTH.map((c) => ({ name: `list-where-390-${c}`, path: '/?demo=1', w: 390, c, where: true, full: true })),
+  // "빼기"가 열린 줄(키보드로 오면 열린다)과, 뺀 뒤의 되돌리기 알림
+  { name: 'row-remove-open-390-light', path: '/?demo=1', w: 390, c: 'light', openRemove: '삼겹살 600g' },
+  ...BOTH.map((c) => ({ name: `removed-notice-390-${c}`, path: '/?demo=1', w: 390, c, remove: '삼겹살 600g' })),
+  ...BOTH.map((c) => ({ name: `list-empty-390-${c}`, path: '/?demo=empty', w: 390, c, wait: '아직 담은 게 없어요' })),
+  { name: 'list-error-390-light', path: '/?demo=error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
+  ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `login-${w}-${c}`, path: '/?demo=login&error=1', w, c }))),
+  ...BOTH.map((c) => ({ name: `no-household-390-${c}`, path: '/?demo=nohousehold', w: 390, c })),
+  { name: 'no-household-1280-light', path: '/?demo=nohousehold', w: 1280, c: 'light' },
 ]
+
+// 이름을 주면 그 화면만 다시 찍는다: npm run screens -- list-empty-390-light removed-notice-390-dark
+const only = process.argv.slice(2)
+const selected = only.length ? shots.filter((s) => only.includes(s.name)) : shots
 
 const browser = await chromium.launch()
 const problems = []
 try {
-  for (const s of shots) {
+  for (const s of selected) {
     const context = await browser.newContext({
       viewport: SIZES[s.w],
       deviceScaleFactor: s.w === 390 ? 2 : 1,
@@ -34,11 +49,18 @@ try {
     await page.goto(BASE + s.path, { waitUntil: 'networkidle' })
     await page.evaluate(() => document.fonts.ready)
     if (s.path.includes('demo=1')) await page.getByRole('heading', { name: '이번 장보기' }).waitFor()
+    if (s.wait) await page.getByText(s.wait).waitFor()
     if (s.where) await page.getByRole('button', { name: '어디서 살지' }).click()
     if (s.sheet) {
       await page.getByRole('button', { name: '담기', exact: true }).first().click()
       await page.getByRole('dialog').waitFor()
-      await page.getByLabel('살 것').fill('비비고 왕교자 1.05kg x2\n우유 900ml\n대파\n고추장 500g\n휴지 30롤')
+      await page.getByLabel('살 것').fill(s.sheet)
+    }
+    if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
+    if (s.remove) {
+      await page.getByRole('button', { name: `${s.remove} 빼기` }).focus()
+      await page.keyboard.press('Enter')
+      await page.getByRole('button', { name: '되돌리기' }).waitFor()
     }
     await page.waitForTimeout(450)
 
