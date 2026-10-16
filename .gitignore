@@ -24,3 +24,6 @@ screenshots/tmp/
 .DS_Store
 Thumbs.db
 *.log
+
+# 브레인스토밍 시안(로컬 전용)
+.superpowers/
