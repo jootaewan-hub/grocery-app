@@ -36,6 +36,41 @@ describe('parseLines', () => {
     expect(parseLines('대파'.normalize('NFD'))[0]).toMatchObject({ name: '대파', category: '채소' }))
   it('N개입은 개수가 아니라 용량', () =>
     expect(parseLines('컵라면 6개입')[0]).toMatchObject({ spec: '6개입', count: 1 }))
+
+  // DB 제약: name 1..60자, spec 20자 이하(Postgres char_length는 코드 포인트로 센다)
+  const cp = (s: string) => Array.from(s).length
+  it('긴 이름은 60자(코드 포인트)까지만 담고 표시해 둔다', () => {
+    const [p] = parseLines('가'.repeat(70))
+    expect(cp(p.name)).toBe(60)
+    expect(p.name).toBe('가'.repeat(60))
+    expect(p.nameCut).toBe(true)
+  })
+  it('이모지(서로게이트 쌍)는 한 글자로 센다', () => {
+    const [p] = parseLines('🍎'.repeat(70))
+    expect(cp(p.name)).toBe(60)
+    expect(p.name).toBe('🍎'.repeat(60))
+    expect(p.name.length).toBe(120) // UTF-16 길이로 자르면 30개가 된다
+  })
+  it('이모지 59개 + 글자 1개 = 60자는 자르지 않는다', () => {
+    const [p] = parseLines('🍎'.repeat(59) + '가')
+    expect(cp(p.name)).toBe(60)
+    expect(p.nameCut).toBeUndefined()
+  })
+  it('자른 끝의 공백은 지운다', () => {
+    const [p] = parseLines('가'.repeat(59) + ' 나다라마바')
+    expect(p.name).toBe('가'.repeat(59))
+    expect(p.nameCut).toBe(true)
+  })
+  it('긴 이름 뒤의 용량·개수는 그대로 읽는다', () =>
+    expect(parseLines('가'.repeat(70) + ' 500g x2')[0]).toMatchObject({ name: '가'.repeat(60), spec: '500g', count: 2, nameCut: true }))
+  it('20자가 넘는 용량 표기는 용량으로 보지 않고 이름에 남긴다', () => {
+    const line = '설탕 ' + '1'.repeat(20) + 'g'
+    expect(parseLines(line)[0]).toEqual({ name: line, spec: null, count: 1, category: '가공' })
+  })
+  it('딱 20자 용량은 용량으로 읽는다', () =>
+    expect(parseLines('설탕 ' + '1'.repeat(19) + 'g')[0]).toMatchObject({ name: '설탕', spec: '1'.repeat(19) + 'g' }))
+  it('60자 이하 이름에는 표시가 없다', () =>
+    expect(parseLines('가'.repeat(60))[0]).toEqual({ name: '가'.repeat(60), spec: null, count: 1, category: '기타' }))
 })
 
 describe('categorize', () => {

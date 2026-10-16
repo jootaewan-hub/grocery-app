@@ -208,7 +208,8 @@ button { touch-action: manipulation; -webkit-user-select: none; user-select: non
 .preview-list { list-style: none; margin: 0; padding: 0 16px; background: var(--oat); border-radius: var(--r-group); }
 .preview-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 48px; padding: 8px 0; }
 .preview-row + .preview-row { border-top: 1px solid var(--oat-deep); }
-.preview-name { min-width: 0; font-size: 16px; font-weight: 600; }
+.preview-name { min-width: 0; font-size: 16px; font-weight: 600; overflow-wrap: anywhere; }
+.preview-note { display: block; margin-top: 2px; font-size: 13px; font-weight: 500; color: var(--ink-muted); }
 .form-error { margin-top: 12px; color: var(--clay); font-size: 14px; }
 .sheet-foot { padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom)); }
 

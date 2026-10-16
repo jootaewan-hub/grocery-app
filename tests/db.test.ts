@@ -104,6 +104,15 @@ describe('grocery.items 권한', () => {
     expect(await errorOf(as(A, `update grocery.items set bought_by = $1, bought_at = now(), paid = 10000000000`, [A]))).toMatch(/check/)
     await as(A, `update grocery.items set bought_by = $1, bought_at = now(), paid = 1000`, [A])
   })
+  it('이름 60자(코드 포인트)는 받고 61자는 거부, 이모지도 한 글자', async () => {
+    const ins = (name: string) =>
+      as(A, `insert into grocery.items (household_id, name, category) values ($1, $2, '기타')`, [hhAB, name])
+    await ins('가'.repeat(60))
+    await ins('🍎'.repeat(60)) // UTF-16으로는 120이지만 코드 포인트로는 60
+    expect(await errorOf(ins('가'.repeat(61)))).toMatch(/check/)
+    const rows = await as<{ n: number }>(A, `select char_length(name) as n from grocery.items where name <> '대파'`)
+    expect(rows.map((r) => r.n)).toEqual([60, 60])
+  })
   it('산 사람은 같은 가구 구성원이어야 한다', async () => {
     expect(await errorOf(as(A, `update grocery.items set bought_by = $1, bought_at = now()`, [C]))).toMatch(/foreign key/)
   })

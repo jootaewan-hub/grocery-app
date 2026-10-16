@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react'
-import { parseLines, type ParsedItem } from '../lib/parse'
+import { NAME_MAX, parseLines, type ParsedItem } from '../lib/parse'
 
 const CLOSE_MS = 250 // 가계부 Motion: 닫기는 여는 것(400ms)보다 빠르게
 
@@ -61,17 +61,18 @@ export default function AddSheet({ onAdd, onClose }: Props) {
   })
 
   async function submit() {
-    if (parsed.length === 0 || busy) return
+    if (parsed.length === 0 || busy || closing) return
     setBusy(true)
     setError(null)
     try {
       await onAdd(parsed)
-      close()
     } catch {
       setError('담지 못했어요. 잠시 뒤 다시 해 주세요.')
-    } finally {
       setBusy(false)
+      return
     }
+    // 담은 뒤에는 시트가 닫힐 때까지 busy를 풀지 않는다: 닫히는 동안 한 번 더 누르면 같은 품목이 두 번 담긴다.
+    close()
   }
 
   return (
@@ -113,6 +114,7 @@ export default function AddSheet({ onAdd, onClose }: Props) {
                       {p.name}
                       {p.spec && <span className="row-spec num"> {p.spec}</span>}
                       {p.count > 1 && <span className="row-count num"> ×{p.count}</span>}
+                      {p.nameCut && <span className="preview-note">이름이 길어 {NAME_MAX}자까지만 담아요</span>}
                     </span>
                     <span className="tag">{p.category}</span>
                   </li>
@@ -123,7 +125,7 @@ export default function AddSheet({ onAdd, onClose }: Props) {
           {error && <p role="alert" className="form-error">{error}</p>}
         </div>
         <div className="sheet-foot">
-          <button type="button" className="btn-primary btn-big" disabled={parsed.length === 0 || busy} onClick={() => void submit()}>
+          <button type="button" className="btn-primary btn-big" disabled={parsed.length === 0 || busy || closing} onClick={() => void submit()}>
             {busy ? '담는 중' : <><span className="num">{parsed.length}</span>개 담기</>}
           </button>
         </div>
