@@ -1,16 +1,21 @@
-# 구조 (제안 — 확정 전)
+# 구조
 
-`docs/tracking/status.md`의 "확정할 결정"이 정해지기 전까지는 제안이다.
+배포·데이터·로그인은 확정(D-003, D-004, D-006). 테이블 초안은 Supabase 단계에서 확정한다.
 
 ## 구성
 
-| 부분 | 제안 | 이유 |
+| 부분 | 선택 | 이유 |
 |---|---|---|
-| 앱 | React + TypeScript + Vite, PWA | 휴대폰 홈 화면 설치, 카메라(바코드·사진), 오프라인 목록 보기. 기존 프로젝트와 같은 도구. |
-| 데이터·로그인 | Supabase (Postgres, Auth, Realtime) | 두 사람이 같은 목록을 실시간으로 공유. RLS로 가구 구성원만 접근. |
+| 앱 | React + TypeScript + Vite, PWA | 휴대폰 홈 화면 설치, 카메라(바코드·사진), 오프라인 목록 보기. 가계부와 같은 도구. |
+| 데이터·로그인 | 가계부와 같은 Supabase 프로젝트(`account-book`)의 Postgres, Auth, Realtime. 장보기 테이블은 `grocery` 스키마 | 계정·가구를 가계부와 공유(D-003). 로그인은 가계부 계정 이메일+비밀번호(D-004). RLS로 가구 구성원만 접근. |
 | 서버 함수 | Supabase Edge Functions | API 키를 서버에만 두고 외부 API를 대신 호출. 응답 캐시. |
-| 정기 수집 | Supabase pg_cron (또는 배포처의 cron) | 지켜보는 품목 시세와 식약처 회수 목록을 매일 자동 수집 → 실제 추이 데이터. |
-| 배포 | Cloudflare Pages 또는 Vercel (확정 전) | 건강백과는 Cloudflare Pages를 쓰고 있다. |
+| 정기 수집 | Supabase pg_cron | 지켜보는 품목 시세와 식약처 회수 목록을 매일 자동 수집 → 실제 추이 데이터. |
+| 배포 | GitHub Pages (Actions에서 테스트 → 빌드 → 배포) | 가계부와 같은 방식(D-006). 저장소는 배포 때 공개로 바꾼다. |
+
+## 공유 DB 규칙 (D-003)
+
+- 장보기 마이그레이션은 `grocery` 스키마 안의 객체만 만들고 바꾼다. 가계부의 `public` 테이블은 읽기만 하고, 가계부 내역에 쓰는 것은 지출 기록 단계에서 정할 함수 하나로만 한다.
+- 가구·구성원은 가계부의 테이블을 그대로 쓴다. 아래 초안의 `households`, `household_members`는 새로 만들지 않는다.
 
 ## 데이터 흐름
 
