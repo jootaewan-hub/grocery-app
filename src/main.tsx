@@ -1,11 +1,38 @@
-import { StrictMode } from 'react'
+import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
 import App from './App'
 import './styles/tokens.css'
 import './styles/app.css'
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+// 개발 서버에서만: ?demo=1(데모 목록), ?demo=login(로그인, &error=1이면 오류 문구), ?demo=nohousehold.
+// import.meta.env.DEV가 빌드에서 false로 바뀌어 이 분기와 데모 모듈은 빌드 결과에 들어가지 않는다.
+async function devScreen(): Promise<ReactNode | null> {
+  const params = new URLSearchParams(window.location.search)
+  const mode = params.get('demo')
+  if (mode === '1') {
+    const [{ demoSeed }, { createMemoryStore }, { default: ListScreen }] = await Promise.all([
+      import('./demo'),
+      import('./lib/store'),
+      import('./components/ListScreen'),
+    ])
+    const d = demoSeed()
+    return <ListScreen store={createMemoryStore(d.items, d.me)} me={d.me} />
+  }
+  if (mode === 'login') {
+    const [{ default: Login }, { loginErrorMessage }] = await Promise.all([import('./components/Login'), import('./lib/session')])
+    return <Login initialError={params.get('error') ? loginErrorMessage(undefined) : null} />
+  }
+  if (mode === 'nohousehold') {
+    const { default: NoHousehold } = await import('./components/NoHousehold')
+    return <NoHousehold onSignOut={() => {}} />
+  }
+  return null
+}
+
+const root = createRoot(document.getElementById('root')!)
+const show = (screen: ReactNode) => root.render(<StrictMode>{screen}</StrictMode>)
+if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('demo')) {
+  void devScreen().then((screen) => show(screen ?? <App />))
+} else {
+  show(<App />)
+}

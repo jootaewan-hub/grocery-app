@@ -1,15 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import ListScreen from './components/ListScreen'
 import Login from './components/Login'
 import NoHousehold from './components/NoHousehold'
 import { appView, type AppInput } from './lib/appView'
 import { isConfigured, supabase } from './lib/supabase'
-import { loadMembership } from './lib/session'
+import { loadMembership, type Membership } from './lib/session'
+import { createSupabaseStore } from './lib/supabaseStore'
+
+// 가구 판정과 함께, 판정이 ready일 때의 구성원 정보를 같은 사용자 기준으로 들고 있다.
+type HouseholdState = AppInput['household'] & { membership?: Membership }
 
 const CHECK_TIMEOUT_MS = 10_000
 
 export default function App() {
   const [userId, setUserId] = useState<string | null | undefined>(undefined) // undefined: 세션 확인 중
-  const [household, setHousehold] = useState<AppInput['household']>({ forUser: undefined, state: 'loading' })
+  const [household, setHousehold] = useState<HouseholdState>({ forUser: undefined, state: 'loading' })
   const [timedOut, setTimedOut] = useState<AppInput['timedOut']>(null)
   const [attempt, setAttempt] = useState(0)
 
@@ -36,7 +41,7 @@ export default function App() {
     setHousehold({ forUser, state: 'loading' })
     loadMembership(supabase())
       .then((m) => {
-        if (!cancelled) setHousehold({ forUser, state: m ? 'ready' : 'none' })
+        if (!cancelled) setHousehold(m ? { forUser, state: 'ready', membership: m } : { forUser, state: 'none' })
       })
       .catch(() => {
         if (!cancelled) setHousehold({ forUser, state: 'failed' })
@@ -48,8 +53,12 @@ export default function App() {
 
   const view = appView({ configured: isConfigured, userId, household, timedOut })
 
+  // 목록에는 지금 로그인한 사람의 구성원 정보만 넘긴다. 사용자가 바뀌는 사이에는 확인 중으로 둔다.
+  const membership = household.membership && household.membership.userId === userId ? household.membership : null
+  const store = useMemo(() => (membership ? createSupabaseStore(supabase(), membership) : null), [membership])
+
   // 확인 중인 상태가 10초를 넘기면 실패 화면으로 넘어간다.
-  const checking = view === 'checking-session' || view === 'checking-household'
+  const checking = view === 'checking-session' || view === 'checking-household' || (view === 'ready' && !membership)
   useEffect(() => {
     if (!checking) return
     const t = setTimeout(() => setTimedOut({ forUser: userId }), CHECK_TIMEOUT_MS)
@@ -81,12 +90,9 @@ export default function App() {
         </main>
       )
     case 'ready':
-      // Task 7이 목록 화면으로 바꾼다.
-      return (
-        <main className="auth">
-          <h1>이번 장보기</h1>
-          <button type="button" className="btn-quiet" onClick={signOut}>로그아웃</button>
-        </main>
-      )
+      if (!membership || !store) {
+        return <main className="auth" aria-busy="true"><p className="auth-lead">가구 정보 확인 중</p></main>
+      }
+      return <ListScreen key={membership.userId} store={store} me={membership} onSignOut={signOut} />
   }
 }

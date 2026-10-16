@@ -15,7 +15,7 @@ supabase/.branches/
 # 검사 산출물
 playwright-report/
 test-results/
-screenshots/tmp/
+screenshots/
 
 # 편집기·OS
 .vscode/*

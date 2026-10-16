@@ -4,11 +4,12 @@ import { loginErrorMessage } from '../lib/session'
 
 export const ACCOUNT_BOOK_URL = 'https://jootaewan-hub.github.io/account-book/'
 
-export default function Login() {
+// initialError는 개발용 화면 캡처에서 오류 문구 모양을 보려고 쓴다.
+export default function Login({ initialError = null }: { initialError?: string | null } = {}) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(initialError)
 
   async function submit(e: FormEvent) {
     e.preventDefault()
