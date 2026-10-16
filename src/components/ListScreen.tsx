@@ -79,9 +79,9 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
 
   // 빼기: 줄은 바로 숨기고, 5초 뒤에 지운다. 되돌리기는 타이머를 지우고 줄을 다시 보인다.
   const commitRemove = useCallback(
-    (id: string) => {
+    (id: string): Promise<void> => {
       pending.current.delete(id)
-      store.remove(id).then(
+      return store.remove(id).then(
         () => {
           // 다시 불러오기가 돌아오기 전에 줄이 잠깐 되살아나지 않게, 지역 목록에서 먼저 뺀 뒤 숨김을 푼다.
           setItems((l) => l?.filter((i) => i.id !== id) ?? l)
@@ -115,6 +115,37 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
     window.clearTimeout(noticeTimer.current)
     setNotice(null)
   }
+
+  // 기다리던 빼기를 지금 지운다. 앱이 백그라운드로 가거나(휴대폰은 그대로 종료될 수 있다) 로그아웃할 때 쓴다.
+  // 되돌릴 수 없게 되므로 "되돌리기" 알림도 닫는다.
+  const flushRemovals = useCallback((): Promise<unknown> => {
+    const ids = [...pending.current.keys()]
+    if (ids.length === 0) return Promise.resolve()
+    for (const id of ids) window.clearTimeout(pending.current.get(id))
+    setNotice((n) => (n?.kind === 'removed' ? null : n))
+    return Promise.allSettled(ids.map(commitRemove))
+  }, [commitRemove])
+
+  useEffect(() => {
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') void flushRemovals()
+    }
+    const onPageHide = () => void flushRemovals()
+    document.addEventListener('visibilitychange', onHidden)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHidden)
+      window.removeEventListener('pagehide', onPageHide)
+    }
+  }, [flushRemovals])
+
+  // 로그아웃은 기다리던 빼기가 서버에 닿은 뒤에 한다(세션이 먼저 사라지면 지우기 요청이 거부된다).
+  const signOut = onSignOut
+    ? async () => {
+        await flushRemovals()
+        onSignOut()
+      }
+    : undefined
 
   // 화면을 떠나면 기다리던 빼기는 바로 지운다(사용자가 이미 뺀 것이므로).
   useEffect(() => {
@@ -191,7 +222,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
         <h1>이번 장보기</h1>
         <div className="list-head-actions">
           <button type="button" className="btn-primary only-wide" onClick={openSheet}>담기</button>
-          {onSignOut && <button type="button" className="btn-text" onClick={onSignOut}>로그아웃</button>}
+          {signOut && <button type="button" className="btn-text" onClick={() => void signOut()}>로그아웃</button>}
         </div>
       </header>
 
