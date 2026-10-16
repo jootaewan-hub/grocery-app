@@ -28,6 +28,8 @@ describe('parseLines', () => {
   it('붙여 쓴 용량', () =>
     expect(parseLines('삼겹살600g')[0]).toMatchObject({ name: '삼겹살', spec: '600g', category: '정육' }))
   it('모 단위', () => expect(parseLines('두부 2모')[0]).toMatchObject({ name: '두부', spec: '2모', count: 1 }))
+  it('롤 단위', () =>
+    expect(parseLines('휴지 30롤')[0]).toEqual({ name: '휴지', spec: '30롤', count: 1, category: '생활용품' }))
   it('물 2L x 6', () =>
     expect(parseLines('물 2L x 6')[0]).toEqual({ name: '물', spec: '2L', count: 6, category: '음료' }))
   it('NFD 입력도 같은 결과', () =>

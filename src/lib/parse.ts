@@ -5,7 +5,7 @@ export type ParsedItem = { name: string; spec: string | null; count: number; cat
 // 줄 끝의 개수 표기: x2, ×2, 2개 (6개입은 용량이므로 제외 — 줄 끝이 '개'일 때만 일치)
 const COUNT_RE = /(?:^|\s|(?<=[가-힣]))(?:[x×]\s*(\d+)|(\d+)\s*개)$/i
 // 줄 끝의 용량 표기: 숫자 + 단위(소수점 허용)
-const SPEC_RE = /(?:^|\s|(?<=[가-힣]))(\d+(?:\.\d+)?(?:kg|g|ml|L|개입|구|포기|단|마리|팩|봉|병|캔|장|모))$/i
+const SPEC_RE = /(?:^|\s|(?<=[가-힣]))(\d+(?:\.\d+)?(?:kg|g|ml|L|개입|구|포기|단|마리|팩|봉|병|캔|장|모|롤))$/i
 
 function parseLine(raw: string): ParsedItem | null {
   let rest = raw.trim()

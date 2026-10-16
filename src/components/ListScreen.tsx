@@ -83,8 +83,10 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
       pending.current.delete(id)
       store.remove(id).then(
         () => {
-          refetch()
+          // 다시 불러오기가 돌아오기 전에 줄이 잠깐 되살아나지 않게, 지역 목록에서 먼저 뺀 뒤 숨김을 푼다.
+          setItems((l) => l?.filter((i) => i.id !== id) ?? l)
           setHidden((h) => without(h, id))
+          refetch()
         },
         () => {
           setHidden((h) => without(h, id))
