@@ -28,6 +28,8 @@ describe('토큰', () => {
     const t = tokens('light')
     expect(t['--canvas']).toBe('#FFFFFF'); expect(t['--oat']).toBe('#F4F1EC'); expect(t['--ink']).toBe('#33312D')
     expect(t['--clay']).toBe('#A8543E'); expect(t['--indigo']).toBe('#3D5A78')
+    // 가계부 #77726A와 다르다: 귀리 면 위 4.5:1 규칙을 맞추려고 일부러 어둡게 했다
+    expect(t['--ink-faint']).toBe('#726D65')
   })
   it('다크 두 곳(data-theme, 시스템 설정)의 값이 같다', () => {
     const media = css.slice(css.indexOf('@media (prefers-color-scheme: dark)'))
