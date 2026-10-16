@@ -32,7 +32,7 @@ export function rowToItem(r: Row): Item {
     addedAt: r.added_at,
     boughtBy: r.bought_by,
     boughtAt: r.bought_at,
-    paid: r.paid,
+    paid: r.paid == null ? null : Number(r.paid), // bigint는 문자열로 올 수 있다
   }
 }
 
@@ -74,13 +74,21 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       if (error) throw error
     },
     subscribe(onChange) {
+      // 구독마다 고유한 이름: StrictMode의 재마운트에서 아직 지워지지 않은 채널과 겹치지 않게 한다.
       const channel = client
-        .channel(`grocery-items-${me.householdId}`)
+        .channel(`grocery-items-${me.householdId}-${crypto.randomUUID()}`)
         .on(
           'postgres_changes',
-          { event: '*', schema: 'grocery', table: 'items', filter: `household_id=eq.${me.householdId}` },
+          { event: 'INSERT', schema: 'grocery', table: 'items', filter: `household_id=eq.${me.householdId}` },
           () => onChange(),
         )
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'grocery', table: 'items', filter: `household_id=eq.${me.householdId}` },
+          () => onChange(),
+        )
+        // DELETE는 열 값으로 거를 수 없어 필터가 없다. 알림만 받고 list()가 가구로 좁혀 다시 읽는다.
+        .on('postgres_changes', { event: 'DELETE', schema: 'grocery', table: 'items' }, () => onChange())
         .subscribe()
       return () => {
         void client.removeChannel(channel)

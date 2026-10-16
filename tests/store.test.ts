@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import type { SupabaseClient } from '@supabase/supabase-js'
+import { createSupabaseStore, rowToItem } from '../src/lib/supabaseStore'
 import { createMemoryStore } from '../src/lib/store'
 import { demoSeed } from '../src/demo'
 
@@ -51,5 +53,57 @@ describe('demoSeed', () => {
     expect(d.me.members.map((m) => m.spouseRole)).toEqual(['husband', 'wife'])
     expect(d.items.filter((i) => i.boughtAt)).toHaveLength(1)
     expect(d.items.every((i) => i.paid === null && i.productKey === null)).toBe(true)
+  })
+})
+
+describe('rowToItem', () => {
+  const base = {
+    id: 'i', household_id: 'h', name: '대파', spec: null, count: 1, category: '채소',
+    product_key: null, added_by: null, added_at: 't', bought_by: null, bought_at: null, paid: null,
+  }
+  it('null 열을 그대로 camelCase로 옮긴다', () => {
+    expect(rowToItem(base)).toEqual({
+      id: 'i', householdId: 'h', name: '대파', spec: null, count: 1, category: '채소',
+      productKey: null, addedBy: null, addedAt: 't', boughtBy: null, boughtAt: null, paid: null,
+    })
+  })
+  it('문자열로 온 paid는 숫자로 바꾼다', () => {
+    expect(rowToItem({ ...base, bought_by: 'u', bought_at: 't', paid: '3480' as unknown as number }).paid).toBe(3480)
+  })
+})
+
+describe('Supabase 구독', () => {
+  function fake() {
+    const calls: { name: string; ons: { event: string; filter?: string }[] }[] = []
+    const removed: unknown[] = []
+    const client = {
+      channel(name: string) {
+        const rec = { name, ons: [] as { event: string; filter?: string }[] }
+        calls.push(rec)
+        const ch = {
+          on(_t: string, cfg: { event: string; filter?: string }) { rec.ons.push(cfg); return ch },
+          subscribe() { return ch },
+        }
+        return ch
+      },
+      removeChannel(ch: unknown) { removed.push(ch); return Promise.resolve('ok') },
+    }
+    return { calls, removed, client: client as unknown as SupabaseClient }
+  }
+  const mem = { userId: 'u', householdId: 'h', members: [] }
+  it('구독마다 다른 채널 이름, INSERT·UPDATE만 필터, 해제하면 채널을 지운다', () => {
+    const { calls, removed, client } = fake()
+    const s = createSupabaseStore(client, mem)
+    const off = s.subscribe(() => {})
+    s.subscribe(() => {})
+    expect(calls[0].name).not.toBe(calls[1].name)
+    expect(calls[0].ons).toMatchObject([
+      { event: 'INSERT', filter: 'household_id=eq.h' },
+      { event: 'UPDATE', filter: 'household_id=eq.h' },
+      { event: 'DELETE' },
+    ])
+    expect(calls[0].ons[2].filter).toBeUndefined()
+    off()
+    expect(removed).toHaveLength(1)
   })
 })
