@@ -1,0 +1,24 @@
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; background: var(--canvas); color: var(--ink); font-family: var(--font-ui); }
+body { font-size: 16px; line-height: 1.5; }
+h1 { font-size: 22px; font-weight: 700; margin: 0; }
+
+.auth { max-width: 400px; margin: 0 auto; padding: 64px var(--gutter) 40px; display: flex; flex-direction: column; gap: 16px; }
+.auth-lead { margin: 0; color: var(--ink-muted); }
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-form label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--ink-muted); }
+.auth-form input {
+  min-height: 44px; padding: 0 14px; font: inherit; font-size: 16px; color: var(--ink);
+  background: var(--oat); border: 1px solid var(--line); border-radius: var(--r-tile);
+}
+.auth-form input:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.auth-error { margin: 0; color: var(--clay); font-size: 14px; }
+.auth-link { color: var(--indigo); font-size: 14px; min-height: 44px; display: inline-flex; align-items: center; }
+
+.btn-primary, .btn-quiet {
+  min-height: 44px; padding: 0 20px; font: inherit; font-weight: 600; border-radius: var(--r-btn); cursor: pointer;
+}
+.btn-primary { background: var(--ink); color: var(--on-ink); border: 0; }
+.btn-primary:disabled { opacity: 0.6; cursor: default; }
+.btn-quiet { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+.btn-primary:focus-visible, .btn-quiet:focus-visible, .auth-link:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
