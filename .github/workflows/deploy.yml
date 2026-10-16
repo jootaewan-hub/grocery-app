@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: pages
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   build:
@@ -27,8 +27,7 @@ jobs:
       - run: npm run build
         env:
           BASE_PATH: /grocery-app/
-          # 이 키는 공개용이라 브라우저에 그대로 들어간다. 비밀값(서비스 롤 키, API 키 등)은 절대 여기에 넣지 않는다.
-          # Supabase 공개용(publishable) 키. 브라우저에 그대로 들어가는 값이며 데이터는 RLS로 보호된다.
+          # Supabase 공개용(publishable) 키라 브라우저에 그대로 들어간다(데이터는 RLS로 보호). 비밀값은 절대 여기에 넣지 않는다.
           VITE_SUPABASE_URL: https://kifdfpbwiebfgvdumqjf.supabase.co
           VITE_SUPABASE_PUBLISHABLE_KEY: sb_publishable_bQ2BOXHX_7-_l_tvVrel6A_-2atkMYK
       - uses: actions/configure-pages@v5
