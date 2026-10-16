@@ -9,8 +9,8 @@ const CHECK_TIMEOUT_MS = 10_000
 
 export default function App() {
   const [userId, setUserId] = useState<string | null | undefined>(undefined) // undefined: 세션 확인 중
-  const [household, setHousehold] = useState<AppInput['household']>('loading')
-  const [timedOut, setTimedOut] = useState(false)
+  const [household, setHousehold] = useState<AppInput['household']>({ forUser: undefined, state: 'loading' })
+  const [timedOut, setTimedOut] = useState<AppInput['timedOut']>(null)
   const [attempt, setAttempt] = useState(0)
 
   // 로그인·로그아웃·토큰 갱신을 한 곳에서 받는다. 같은 사용자의 토큰 갱신은 userId가 같아 다시 읽지 않는다.
@@ -18,7 +18,7 @@ export default function App() {
   useEffect(() => {
     if (!isConfigured) return
     setUserId(undefined)
-    setTimedOut(false)
+    setTimedOut(null)
     const { data } = supabase().auth.onAuthStateChange((_event, session) => {
       setUserId(session?.user.id ?? null)
     })
@@ -32,13 +32,14 @@ export default function App() {
   useEffect(() => {
     if (!isConfigured || userId === undefined || userId === null) return
     let cancelled = false
-    setHousehold('loading')
+    const forUser = userId
+    setHousehold({ forUser, state: 'loading' })
     loadMembership(supabase())
       .then((m) => {
-        if (!cancelled) setHousehold(m ? 'ready' : 'none')
+        if (!cancelled) setHousehold({ forUser, state: m ? 'ready' : 'none' })
       })
       .catch(() => {
-        if (!cancelled) setHousehold('failed')
+        if (!cancelled) setHousehold({ forUser, state: 'failed' })
       })
     return () => {
       cancelled = true
@@ -51,7 +52,7 @@ export default function App() {
   const checking = view === 'checking-session' || view === 'checking-household'
   useEffect(() => {
     if (!checking) return
-    const t = setTimeout(() => setTimedOut(true), CHECK_TIMEOUT_MS)
+    const t = setTimeout(() => setTimedOut({ forUser: userId }), CHECK_TIMEOUT_MS)
     return () => clearTimeout(t)
   }, [checking, userId])
 

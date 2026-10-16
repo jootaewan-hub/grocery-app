@@ -19,13 +19,21 @@ export function toMembership(userId: string, rows: MemberRow[]): Membership | nu
   return { userId, householdId: mine.household_id, members }
 }
 
+// 서버 쪽에서도 범위를 좁힌다(RLS에 더해): 내 가구 id를 먼저 구하고, 그 가구의 구성원만 읽는다.
 export async function loadMembership(client: SupabaseClient): Promise<Membership | null> {
   const { data: auth } = await client.auth.getUser()
   const userId = auth.user?.id
   if (!userId) return null
-  const { data, error } = await client.from('members').select('household_id, user_id, display_name, spouse_role')
-  if (error) throw error
-  return toMembership(userId, (data ?? []) as MemberRow[])
+  const mine = await client.from('members').select('household_id').eq('user_id', userId).limit(1)
+  if (mine.error) throw mine.error
+  const householdId = (mine.data?.[0] as { household_id: string } | undefined)?.household_id
+  if (!householdId) return null
+  const all = await client
+    .from('members')
+    .select('household_id, user_id, display_name, spouse_role')
+    .eq('household_id', householdId)
+  if (all.error) throw all.error
+  return toMembership(userId, (all.data ?? []) as MemberRow[])
 }
 
 export function loginErrorMessage(code: string | undefined): string {
