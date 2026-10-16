@@ -13,7 +13,7 @@
 ## 다음 할 일 (순서)
 
 1. 공유 DB에 grocery 마이그레이션 적용, Exposed schemas에 grocery 추가, 실제 계정으로 두 기기 실시간 확인(사용자).
-2. 저장소 공개 전환과 Pages 배포(사용자 지시).
+2. 저장소 공개 전환과 Pages 배포(사용자 지시). 첫 `main` 푸시 전에 Settings → Pages → Source를 "GitHub Actions"로 바꿔 둬야 한다. 아니면 워크플로가 실패한다.
 3. 계획 ②: 식품안전나라 회수 수집과 대조.
 4. 계획 ③: KAMIS 시세 수집과 추이 그래프.
 5. 계획 ④: 가격 연동(`product-check` 1단계). 네이버 쇼핑 API가 2026-07-31에 종료돼 출처를 새로 정한다. 후보는 검색으로 상품 페이지 찾기 → 허용된 몰의 JSON-LD 가격 읽기, 참가격 매장가(`docs/data-sources.md` 1·2절).
