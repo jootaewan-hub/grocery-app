@@ -3,6 +3,11 @@ import type { AlertLevel, Item, PriceCompare } from './types'
 
 export type Section = { key: string; title: string; items: Item[] }
 
+// 0원·음수·NaN·무한대는 출처가 준 가격이 아니다. 화면 계산에서는 없는 값(확인 못 함)으로 본다.
+function price(v: number | null | undefined): number | null {
+  return v != null && Number.isFinite(v) && v > 0 ? v : null
+}
+
 // 안 산 것이 먼저, 산 것은 뒤. 같은 그룹 안은 addedAt 순(원래 순서는 유지).
 function order(items: Item[]): Item[] {
   return items
@@ -42,16 +47,18 @@ export function groupByWhere(
   prices: ReadonlyMap<string, PriceCompare>,
 ): Section[] {
   const { flagged, rest } = split(items, alerts)
-  const online: Item[] = []
+  const onlineItems: Item[] = []
   const store: Item[] = []
   for (const it of rest) {
     const p = prices.get(it.id)
-    const cheaper = p != null && p.onlineBest != null && p.storeBase != null && p.onlineBest < p.storeBase
-    ;(cheaper ? online : store).push(it)
+    const online = price(p?.onlineBest)
+    const base = price(p?.storeBase)
+    const cheaper = online != null && base != null && online < base
+    ;(cheaper ? onlineItems : store).push(it)
   }
   return [
     ...section('alert', '먼저 볼 것', flagged),
-    ...section('online', '온라인이 더 싼 것', online),
+    ...section('online', '온라인이 더 싼 것', onlineItems),
     ...section('store', '마트에서 살 것', store),
   ]
 }
@@ -67,7 +74,7 @@ export function summarize(
   for (const it of items) {
     if (it.boughtAt) continue
     toBuy++
-    const best = prices.get(it.id)?.onlineBest
+    const best = price(prices.get(it.id)?.onlineBest)
     if (best == null) unknown++
     else {
       known++

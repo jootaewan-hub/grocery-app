@@ -47,4 +47,31 @@ describe('listView', () => {
     const prices = new Map([['1', { onlineBest: 1000, storeBase: null }], ['2', { onlineBest: 500, storeBase: null }]])
     expect(summarize([item({ id: '1', count: 2 }), item({ id: '2', boughtAt: 'x' })], prices)).toEqual({ toBuy: 1, lowestTotal: 2000, unknown: 0 })
   })
+  // 0원·음수·NaN은 출처 값이 아니다: 없는 값으로 본다
+  it('onlineBest 0은 합계에 넣지 않고, 다른 값이 없으면 합계는 null', () => {
+    const prices = new Map([['1', { onlineBest: 0, storeBase: null }]])
+    expect(summarize([item({ id: '1' })], prices)).toEqual({ toBuy: 1, lowestTotal: null, unknown: 1 })
+  })
+  it('0 이하·비정상 값은 빼고 나머지만 더한다', () => {
+    const prices = new Map([
+      ['1', { onlineBest: 0, storeBase: null }],
+      ['2', { onlineBest: -500, storeBase: null }],
+      ['3', { onlineBest: Number.NaN, storeBase: null }],
+      ['4', { onlineBest: Number.POSITIVE_INFINITY, storeBase: null }],
+      ['5', { onlineBest: 1200, storeBase: null }],
+    ])
+    const items = ['1', '2', '3', '4', '5'].map((id) => item({ id }))
+    expect(summarize(items, prices)).toEqual({ toBuy: 5, lowestTotal: 1200, unknown: 4 })
+  })
+  it('onlineBest 0이면 온라인이 더 싸다고 보지 않고 마트로', () => {
+    const prices = new Map([['1', { onlineBest: 0, storeBase: 10000 }]])
+    const s = groupByWhere([item({ id: '1' })], new Map(), prices)
+    expect(s.map((x) => x.key)).toEqual(['store'])
+  })
+  it('storeBase가 0 이하이면 비교하지 않고 마트로', () => {
+    const prices = new Map([['1', { onlineBest: 9000, storeBase: 0 }], ['2', { onlineBest: -1, storeBase: -2 }]])
+    const s = groupByWhere([item({ id: '1' }), item({ id: '2' })], new Map(), prices)
+    expect(s.map((x) => x.key)).toEqual(['store'])
+    expect(s[0].items.map((i) => i.id)).toEqual(['1', '2'])
+  })
 })
