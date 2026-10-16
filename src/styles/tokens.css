@@ -1,0 +1,97 @@
+/* 우리집 장보기 디자인 토큰. 라이트는 가계부 DESIGN.md 값 그대로(ink-faint만 귀리 면 위 4.5:1을 맞추려 조정), 다크와 clay-soft는 이 저장소 DESIGN.md 표를 따른다.
+   다크 값은 두 곳(data-theme="dark", 시스템 설정)에 같은 값으로 둔다. tests/tokens.test.ts가 같은지와 대비를 검사한다. */
+@font-face {
+  font-family: 'SUIT';
+  src: url('../assets/fonts/SUIT-Variable.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+:root {
+  --canvas: #FFFFFF;
+  --oat: #F4F1EC;
+  --oat-deep: #EAE5DD;
+  --line: #ECE8E1;
+  --ink: #33312D;
+  --ink-muted: #6B665E;
+  --ink-faint: #726D65; /* 가계부 #77726A는 귀리 면 위 4.24:1이라 살짝 어둡게 */
+  --on-ink: #FFFFFF;
+  --sage: #56694E;
+  --sage-soft: #E7ECE3;
+  --clay: #A8543E;
+  --clay-soft: #FBF0EB;
+  --indigo: #3D5A78;
+  --blush-soft: #F6E4DD;
+  --rose-ink: #7A3F2E;
+  --who-husband: #1C588E;
+  --who-wife: #C67261;
+
+  --font-ui: 'SUIT', 'Apple SD Gothic Neo', 'Malgun Gothic', 'Noto Sans KR', system-ui, sans-serif;
+  --r-tag: 6px;
+  --r-tile: 12px;
+  --r-btn: 14px;
+  --r-group: 20px;
+  --r-sheet: 24px;
+  --gutter: 20px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --canvas: #1C1B19;
+  --oat: #262421;
+  --oat-deep: #34312C;
+  --line: #2F2D29;
+  --ink: #EDEAE4;
+  --ink-muted: #ABA59B;
+  --ink-faint: #A09A90;
+  --on-ink: #1C1B19;
+  --sage: #A3B897;
+  --sage-soft: #2B3327;
+  --clay: #E09479;
+  --clay-soft: #3A2620;
+  --indigo: #9DB6D6;
+  --blush-soft: #3B2A25;
+  --rose-ink: #F0B8A8;
+  --who-husband: #4284C5;
+  --who-wife: #CA6E5D;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #1C1B19;
+    --oat: #262421;
+    --oat-deep: #34312C;
+    --line: #2F2D29;
+    --ink: #EDEAE4;
+    --ink-muted: #ABA59B;
+    --ink-faint: #A09A90;
+    --on-ink: #1C1B19;
+    --sage: #A3B897;
+    --sage-soft: #2B3327;
+    --clay: #E09479;
+    --clay-soft: #3A2620;
+    --indigo: #9DB6D6;
+    --blush-soft: #3B2A25;
+    --rose-ink: #F0B8A8;
+    --who-husband: #4284C5;
+    --who-wife: #CA6E5D;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+html { -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%; }
+html, body { margin: 0; min-height: 100dvh; }
+body {
+  background: var(--canvas);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+input, select, textarea { font-size: 16px; }
