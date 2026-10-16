@@ -9,7 +9,7 @@ export type Item = {
   count: number
   category: Category
   productKey: string | null
-  addedBy: string
+  addedBy: string | null
   addedAt: string // ISO-8601
   boughtBy: string | null
   boughtAt: string | null // ISO-8601, 있으면 산 것

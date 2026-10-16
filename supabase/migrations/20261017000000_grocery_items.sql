@@ -15,15 +15,17 @@ create table grocery.items (
   category text not null check (category in
     ('정육', '수산', '채소', '과일', '유제품', '계란', '가공', '냉동', '음료', '생활용품', '기타')),
   product_key text,
-  added_by uuid not null default auth.uid(),
+  added_by uuid default auth.uid(),  -- 구성원이 가계부에서 지워지면 null (insert 정책이 새 행에는 항상 본인 id를 요구)
   added_at timestamptz not null default now(),
   bought_by uuid,
   bought_at timestamptz,
-  paid bigint check (paid > 0),
-  check ((bought_by is null) = (bought_at is null)),
-  -- 담은 사람·산 사람은 같은 가구 구성원이어야 한다
-  foreign key (household_id, added_by) references public.members (household_id, user_id),
-  foreign key (household_id, bought_by) references public.members (household_id, user_id)
+  paid bigint check (paid > 0 and paid < 10000000000),
+  -- 산 사람이 가계부에서 지워져도 bought_at은 남는다
+  check (bought_by is null or bought_at is not null),
+  check (paid is null or bought_at is not null),
+  -- 담은 사람·산 사람은 같은 가구 구성원이어야 한다. 장보기 데이터가 가계부의 삭제를 막지 않도록 set null.
+  foreign key (household_id, added_by) references public.members (household_id, user_id) on delete set null (added_by),
+  foreign key (household_id, bought_by) references public.members (household_id, user_id) on delete set null (bought_by)
 );
 create index items_household_added_idx on grocery.items (household_id, added_at);
 
