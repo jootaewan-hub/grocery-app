@@ -15,13 +15,15 @@
 ## 공유 DB 규칙 (D-003)
 
 - 장보기 마이그레이션은 `grocery` 스키마 안의 객체만 만들고 바꾼다. 가계부의 `public` 테이블은 읽기만 하고, 가계부 내역에 쓰는 것은 지출 기록 단계에서 정할 함수 하나로만 한다.
+- `grocery.items`의 `added_by`·`bought_by`는 가계부 구성원을 참조하되 `on delete set null`이다(D-007). 장보기 데이터가 가계부의 구성원·계정 삭제를 막지 않고, 떠난 구성원이 담은 품목은 이름 없이 남는다. 새 행은 RLS가 `added_by` = 본인을 강제한다.
+- 장보기 스키마(`grocery`)와 RLS는 `supabase/migrations/`에 있고 PGlite 테스트로 검증한다. 공유 DB 적용과 Exposed schemas 추가는 사용자 확인 후 한다.
 - 가구·구성원은 가계부의 테이블을 그대로 쓴다. 아래 초안의 `households`, `household_members`는 새로 만들지 않는다.
 
 ## 데이터 흐름
 
 1. 담기: 글 → 앱에서 품목·용량·개수 분리 → `items` 저장. 사진 → `photo-extract` 함수(Anthropic API) → 확인 목록 → 저장.
 2. 품목 확인(사용자가 누를 때): `product-check` 함수가
-   - 네이버 쇼핑 검색 → 상품 후보, 이미지, 쇼핑몰별 가격
+   - 상품 후보, 이미지, 쇼핑몰별 가격: 가격 출처는 `docs/data-sources.md` 1절, 계획 ④에서 확정
    - `recalls` 테이블(매일 수집분)과 바코드·제품명·업체명 대조
    - 신선 품목이면 KAMIS 최근 시세(`price_points`)
    를 모아 `product_checks`에 저장하고 앱에 돌려준다. 같은 품목·같은 날은 캐시.

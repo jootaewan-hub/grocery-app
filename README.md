@@ -7,4 +7,26 @@
 - 데이터 출처: [docs/data-sources.md](docs/data-sources.md)
 - 현재 상태: [docs/tracking/status.md](docs/tracking/status.md)
 
-아직 코드가 없다. 시작 순서는 `docs/tracking/status.md`를 따른다.
+## 개발
+
+가계부 앱과 같은 Supabase 프로젝트를 쓴다(D-003). 프로젝트 루트에 `.env.local`을 만들고 아래 두 값을 넣는다. 값은 `.env.example`의 안내처럼 브라우저에 노출돼도 되는 공개용 값이다.
+
+```
+VITE_SUPABASE_URL=
+VITE_SUPABASE_PUBLISHABLE_KEY=
+```
+
+| 명령 | 하는 일 |
+|---|---|
+| `npm run dev` | 개발 서버 |
+| `npm test` | 테스트(권한 테스트는 PGlite) |
+| `npm run build` | 타입 검사 후 빌드 |
+| `npm run screens` | 스크린샷 캡처. 개발 서버를 먼저 띄워 둔다 |
+
+개발 서버에서만 되는 화면 미리보기 주소:
+
+- `?demo=1` 로그인한 상태의 목록(메모리 데이터)
+- `?demo=login` 로그인 화면
+- `?demo=nohousehold` 가구에 속하지 않은 계정 화면
+
+배포는 `main`에 푸시하면 GitHub Actions가 테스트 → 빌드 → GitHub Pages 순서로 한다(D-006).
