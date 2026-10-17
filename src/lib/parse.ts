@@ -73,10 +73,20 @@ const KEYWORDS_2P = new Set(KEYWORD_TABLE.flatMap(([, kws]) => kws.filter((k) =>
 // 수식어: 품목 단어여도 항상 현재 품목에 붙는다(새 품목을 열지도, 품목으로 세지도 않는다).
 const MODIFIERS = new Set([
   '국거리', '구이용', '찌개용', '불고기용', '수육용', '볶음용', '튀김용', '다짐육', '왕교자', '물만두',
-  '국산', '국내산', '수입', '냉동', '생', '유기농', '무항생제', '한우', '한돈',
+  '국산', '국내산', '수입', '미국산', '호주산', '냉동', '생', '유기농', '무항생제',
+  // 고기 앞에 붙는 말("돼지 목살"): 품목 단어로 세지 않고 뒤 품목에 붙는다
+  '한우', '한돈', '돼지', '소고기', '쇠고기', '닭', '오리',
 ])
+// 상품 형태를 나타내는 끝말("오렌지 주스"): 항상 앞 품목에 붙는다. 우유·치즈는 단독으로 흔히 사서 넣지 않는다.
+const FORM_SUFFIXES = new Set(['주스', '요거트', '요구르트', '드레싱', '소스', '잼', '즙', '칩', '라떼', '스무디'])
 // 두 단어가 합쳐야 한 상품인 것(둘 다 품목 단어라서 그대로 두면 갈라진다)
 const COMPOUNDS = new Set(['딸기 우유', '바나나 우유', '초코 우유', '커피 우유'])
+// 개수 표기(x2, 2개)인가, 용량 표기인가
+const isCountQty = (t: string) => /^[x×]/i.test(t) || /^\d+개$/.test(t)
+const hasKind = (item: string, count: boolean) => {
+  const tokens = item.replace(/([x×])\s+(\d+)/gi, '$1$2').split(/\s+/)
+  return tokens.some((q) => QTY_TOKEN_RE.test(q) && isCountQty(q) === count)
+}
 const isQty = (t: string) => QTY_TOKEN_RE.test(t) || /^[x×] \d+$/i.test(t)
 
 // 이어지는 조각들을 한 목록으로 모은다: 수량만 있는 조각은 바로 앞 품목에 붙고, 앞 품목이 없으면 버린다.
@@ -103,11 +113,13 @@ function splitChunk(chunk: string, items: string[]): void {
         words.push(t)
         hasQty = true
       } else if (items.length) {
-        items[items.length - 1] += ` ${t}` // 앞 조각의 품목에 붙인다
+        // 앞 품목에 같은 종류(개수/용량)가 이미 있으면 버리고, 없으면 붙인다
+        const last = items[items.length - 1]
+        if (!hasKind(last, isCountQty(t.replace(/\s+/g, '')))) items[items.length - 1] = `${last} ${t}`
       } // 앞 품목이 없으면 버린다
       continue
     }
-    const modifier = MODIFIERS.has(t)
+    const modifier = MODIFIERS.has(t) || FORM_SUFFIXES.has(t)
     const brand = BRANDS.has(t.toLowerCase())
     const itemWord = !modifier && !brand && (Object.hasOwn(STAPLES, t) || COMPOUNDS.has(t) || KEYWORDS_2P.has(t))
     // 수량까지 적은 품목 뒤의 말은 새 품목이다. 품목 단어가 이미 있는데 또 품목 단어나 브랜드가 와도 새 품목이다(수식어는 제외).

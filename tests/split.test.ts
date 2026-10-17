@@ -54,6 +54,7 @@ describe('기본 수량', () => {
   it('용량을 적으면 그대로 둔다', () =>
     expect(parseLines('삼겹살 400g')[0]).toMatchObject({ spec: '400g', specIsDefault: false }))
   it('이름이 정확히 같을 때만 채운다', () => {
+    expect(parseLines('한우 삼겹살')).toHaveLength(1)
     expect(parseLines('한우 삼겹살')[0]).toMatchObject({ spec: null, specIsDefault: false })
     expect(parseLines('양파링')[0]).toMatchObject({ spec: null, specIsDefault: false })
   })
@@ -99,5 +100,25 @@ describe('나누기 보강', () => {
     expect(r).toHaveLength(1)
     expect(r[0]).toMatchObject({ name: '딸기 우유', category: '유제품', spec: null, specIsDefault: false })
     expect(names('딸기 우유 계란')).toEqual(['딸기 우유', '계란'])
+  })
+})
+
+describe('나누기 보강 2', () => {
+  it.each(['돼지 목살', '돼지 삼겹살 600g', '소고기 양지', '샐러드 드레싱', '오렌지 주스', '블루베리 요거트', '토마토 소스'])(
+    '%s는 한 품목',
+    (line) => expect(parseLines(line)).toHaveLength(1),
+  )
+  it('흔한 단독 품목끼리는 여전히 나눈다', () => {
+    expect(names('계란 우유')).toEqual(['계란', '우유'])
+    expect(names('두부 치즈')).toEqual(['두부', '치즈'])
+    expect(names('라면 두부 계란')).toHaveLength(3)
+  })
+  it('같은 종류의 수량만 있는 조각은 버린다', () => {
+    const r = parseLines('양파 2개, 3개')
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatchObject({ name: '양파', count: 2, spec: null })
+  })
+  it('다른 종류의 수량은 붙는다', () => {
+    expect(parseLines('삼겹살 400g, x2')[0]).toMatchObject({ name: '삼겹살', spec: '400g', count: 2 })
   })
 })
