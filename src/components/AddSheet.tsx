@@ -91,7 +91,7 @@ export default function AddSheet({ onAdd, onClose }: Props) {
             className="add-text"
             rows={4}
             value={text}
-            placeholder="한 줄에 하나씩, 예: 비비고 왕교자 1.05kg x2"
+            placeholder="한 줄에 하나씩, 또는 쉼표로 나눠 적어요. 예: 양파, 당근, 비비고 왕교자 1.05kg x2"
             aria-describedby={hintId}
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => {
@@ -101,7 +101,7 @@ export default function AddSheet({ onAdd, onClose }: Props) {
               }
             }}
           />
-          <p id={hintId} className="sr-only">한 줄에 하나씩 적어요. 예: 비비고 왕교자 1.05kg x2</p>
+          <p id={hintId} className="sr-only">한 줄에 하나씩, 또는 쉼표로 나눠 적어요. 예: 양파, 당근, 비비고 왕교자 1.05kg x2</p>
           {parsed.length > 0 && (
             <section className="preview" aria-label="담을 것 미리보기">
               <h3 className="preview-title">
@@ -113,6 +113,7 @@ export default function AddSheet({ onAdd, onClose }: Props) {
                     <span className="preview-name">
                       {p.name}
                       {p.spec && <span className="row-spec num"> {p.spec}</span>}
+                      {p.specIsDefault && <span className="tag tag-default">기본</span>}
                       {p.count > 1 && <span className="row-count num"> ×{p.count}</span>}
                       {p.nameCut && <span className="preview-note">이름이 길어 {NAME_MAX}자까지만 담아요</span>}
                     </span>

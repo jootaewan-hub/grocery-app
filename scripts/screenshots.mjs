@@ -14,9 +14,11 @@ const BOTH = ['light', 'dark']
 const SHEET_TEXT = '비비고 왕교자 1.05kg x2\n우유 900ml\n대파\n고추장 500g\n휴지 30롤'
 // 쇼핑몰 상품명을 통째로 붙여 넣은 경우(60자 넘음): "이름이 길어 60자까지만 담아요"가 보여야 한다.
 const LONG_LINE = '[무료배송] 풀무원 국산콩 두부 부침용 300g 2개입 + 찌개용 300g 2개입 냉장 신선 묶음 기획 특가 세트'
+const SPLIT_TEXT = '양파 당근 감자 비비고 왕교자 파'
 const shots = [
   ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `list-${w}-${c}`, path: '/?demo=1', w, c, full: true }))),
   ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `add-sheet-${w}-${c}`, path: '/?demo=1', w, c, sheet: SHEET_TEXT }))),
+  ...BOTH.map((c) => ({ name: `add-sheet-split-390-${c}`, path: '/?demo=1', w: 390, c, sheet: SPLIT_TEXT })),
   { name: 'add-sheet-long-390-light', path: '/?demo=1', w: 390, c: 'light', sheet: `${LONG_LINE}\n대파` },
   ...BOTH.map((c) => ({ name: `list-where-390-${c}`, path: '/?demo=1', w: 390, c, where: true, full: true })),
   // "빼기"가 열린 줄(키보드로 오면 열린다)과, 뺀 뒤의 되돌리기 알림

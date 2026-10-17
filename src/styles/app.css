@@ -72,6 +72,8 @@ button { touch-action: manipulation; -webkit-user-select: none; user-select: non
   background: var(--canvas); color: var(--ink); font-size: 13px; font-weight: 600; line-height: 20px; white-space: nowrap;
 }
 
+.tag-default { margin-left: 6px; vertical-align: 1px; }
+
 .only-wide { display: none; }
 @media (min-width: 960px) {
   .only-wide { display: revert; }

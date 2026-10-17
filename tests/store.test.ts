@@ -9,12 +9,12 @@ const me = { userId: 'u1', householdId: 'h' }
 describe('메모리 저장소', () => {
   it('담으면 목록에 나오고 담은 사람·시각이 채워진다', async () => {
     const s = createMemoryStore([], me, () => '2026-10-16T10:00:00Z')
-    await s.add([{ name: '대파', spec: null, count: 1, category: '채소' }])
+    await s.add([{ name: '대파', spec: null, count: 1, category: '채소', specIsDefault: false }])
     expect(await s.list()).toMatchObject([{ name: '대파', addedBy: 'u1', addedAt: '2026-10-16T10:00:00Z', boughtAt: null }])
   })
   it('체크하면 산 사람·시각, 풀면 둘 다 지운다', async () => {
     const s = createMemoryStore([], me, () => 't')
-    await s.add([{ name: '대파', spec: null, count: 1, category: '채소' }])
+    await s.add([{ name: '대파', spec: null, count: 1, category: '채소', specIsDefault: false }])
     const [it1] = await s.list()
     await s.setBought(it1.id, true)
     expect((await s.list())[0]).toMatchObject({ boughtBy: 'u1', boughtAt: 't' })
@@ -25,21 +25,21 @@ describe('메모리 저장소', () => {
     const s = createMemoryStore([], me)
     let n = 0
     const off = s.subscribe(() => n++)
-    await s.add([{ name: 'a', spec: null, count: 1, category: '기타' }])
+    await s.add([{ name: 'a', spec: null, count: 1, category: '기타', specIsDefault: false }])
     off()
-    await s.add([{ name: 'b', spec: null, count: 1, category: '기타' }])
+    await s.add([{ name: 'b', spec: null, count: 1, category: '기타', specIsDefault: false }])
     expect(n).toBe(1)
   })
   it('삭제하면 목록에서 빠진다', async () => {
     const s = createMemoryStore([], me)
-    await s.add([{ name: 'a', spec: null, count: 1, category: '기타' }, { name: 'b', spec: null, count: 1, category: '기타' }])
+    await s.add([{ name: 'a', spec: null, count: 1, category: '기타', specIsDefault: false }, { name: 'b', spec: null, count: 1, category: '기타', specIsDefault: false }])
     const [a] = await s.list()
     await s.remove(a.id)
     expect((await s.list()).map((i) => i.name)).toEqual(['b'])
   })
   it('list()는 복사본을 돌려줘 바깥에서 고쳐도 저장소가 바뀌지 않는다', async () => {
     const s = createMemoryStore([], me)
-    await s.add([{ name: 'a', spec: null, count: 1, category: '기타' }])
+    await s.add([{ name: 'a', spec: null, count: 1, category: '기타', specIsDefault: false }])
     const l = await s.list()
     l[0].name = '바뀜'
     l.pop()
