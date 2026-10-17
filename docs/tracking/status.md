@@ -8,11 +8,12 @@
 - 기반 결정 4가지 확정(D-003~D-006): 가계부와 Supabase 공유, 가계부 계정으로 이메일+비밀번호 로그인, 가계부 디자인 체계 + 장보기 확장, 저장소 공개 전환 후 GitHub Pages 배포.
 - 데이터 출처 재조사: 네이버 쇼핑 API 종료 확인, 다나와·에누리·로우차트·참가격·식약처 추가 출처 정리(`docs/data-sources.md`).
 - 화면 설계 승인: 목록, 품목 상세, 시세, 매대 앞 바로 확인(`docs/superpowers/specs/2026-10-16-screens-design.md`). 다음은 구현 계획.
-- 계획 ① 기반과 목록 구현: 가계부 계정으로 로그인, 두 가지 보기를 가진 공유 실시간 장보기 목록, 글 파싱이 있는 담기 시트, `grocery` 스키마와 RLS(PGlite 테스트), 라이트·다크 디자인을 스크린샷으로 확인. 배포 워크플로(`.github/workflows/deploy.yml`) 작성. 공유 DB에는 아직 적용 전.
+- 계획 ① 기반과 목록 구현: 가계부 계정으로 로그인, 두 가지 보기를 가진 공유 실시간 장보기 목록, 글 파싱이 있는 담기 시트, `grocery` 스키마와 RLS(PGlite 테스트), 라이트·다크 디자인을 스크린샷으로 확인. 배포 워크플로(`.github/workflows/deploy.yml`) 작성.
+- 공유 DB 적용(2026-10-17): Supabase MCP `apply_migration`(이름 `grocery_items`)으로 `grocery` 스키마를 적용했다. RLS 켜짐, 정책 4개, anon 스키마 접근 없음, 실시간 publication에 `grocery.items` 추가, 가계부 publication 목록은 그대로. 보안 점검(Advisors) 경고는 적용 전과 같은 4건(가계부 쪽 SECURITY DEFINER 함수 3개, 유출 비밀번호 보호 꺼짐)이고 `grocery` 관련 새 경고는 없다.
 
 ## 다음 할 일 (순서)
 
-1. 공유 DB에 grocery 마이그레이션 적용, Exposed schemas에 grocery 추가, 실제 계정으로 두 기기 실시간 확인(사용자).
+1. Supabase 대시보드 Settings → API → Exposed schemas에 `grocery` 추가, 실제 계정으로 두 기기 실시간 확인(사용자).
 2. 저장소 공개 전환과 Pages 배포(사용자 지시). 첫 `main` 푸시 전에 Settings → Pages → Source를 "GitHub Actions"로 바꿔 둬야 한다. 아니면 워크플로가 실패한다.
 3. 계획 ②: 식품안전나라 회수 수집과 대조.
 4. 계획 ③: KAMIS 시세 수집과 추이 그래프.
