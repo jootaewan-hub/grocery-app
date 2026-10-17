@@ -9,12 +9,7 @@
 
 ## 개발
 
-가계부 앱과 같은 Supabase 프로젝트를 쓴다(D-003). 프로젝트 루트에 `.env.local`을 만들고 아래 두 값을 넣는다. 값은 `.env.example`의 안내처럼 브라우저에 노출돼도 되는 공개용 값이다.
-
-```
-VITE_SUPABASE_URL=
-VITE_SUPABASE_PUBLISHABLE_KEY=
-```
+가계부 앱과 같은 Supabase 프로젝트를 쓴다(D-003). 주소와 공개용 키는 `src/lib/supabaseConfig.ts`에 있어서 `.env` 파일 없이 `npm install` 후 `npm run dev`로 바로 실행된다. 두 값은 브라우저에 노출돼도 되는 공개용 값이고, 비밀값은 그 파일에 두지 않는다(테스트가 막는다). 다른 프로젝트로 시험할 때만 `.env.local`의 `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`로 덮어쓴다.
 
 | 명령 | 하는 일 |
 |---|---|
