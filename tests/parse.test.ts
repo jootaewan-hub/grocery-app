@@ -92,3 +92,8 @@ describe('categorize', () => {
     expect(categorize('총각 무')).toBe('채소')
   })
 })
+
+describe('판 단위', () => {
+  it('계란 1판은 용량', () =>
+    expect(parseLines('계란 1판')[0]).toMatchObject({ name: '계란', spec: '1판', count: 1, specIsDefault: false }))
+})

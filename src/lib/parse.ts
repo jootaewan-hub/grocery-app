@@ -17,7 +17,7 @@ export const NAME_MAX = 60
 export const SPEC_MAX = 20
 const cpLength = (s: string) => Array.from(s).length
 
-const UNITS = 'kg|g|ml|L|개입|구|포기|단|마리|팩|봉|병|캔|장|모|롤'
+const UNITS = 'kg|g|ml|L|개입|구|포기|단|마리|팩|봉|병|캔|장|모|롤|판|망|근'
 // 줄 끝의 개수 표기: x2, ×2, 2개 (6개입은 용량이므로 제외 — 줄 끝이 '개'일 때만 일치)
 const COUNT_RE = /(?:^|\s|(?<=[가-힣]))(?:[x×]\s*(\d+)|(\d+)\s*개)$/i
 // 줄 끝의 용량 표기: 숫자(소수점·분수 허용) + 단위
@@ -89,9 +89,19 @@ const hasKind = (item: string, count: boolean) => {
 }
 const isQty = (t: string) => QTY_TOKEN_RE.test(t) || /^[x×] \d+$/i.test(t)
 
+// 말 뒤에 붙여 쓴 수량을 떼어 낸다: 계란1판 → 계란 + 1판, 우유x2 → 우유 + x2. 단위가 없는 숫자(비타500)는 그대로 둔다.
+const ATTACHED_QTY_RE = new RegExp(String.raw`^(.*?[가-힣A-Za-z])((?:\d+\/\d+|\d+(?:\.\d+)?)(?:${UNITS}|개)|[x×]\d+)$`, 'i')
+function splitAttachedQty(token: string): string[] {
+  const m = ATTACHED_QTY_RE.exec(token)
+  return m ? [m[1], m[2]] : [token]
+}
+
+// 말 끝에 숫자가 붙은 상품명(비타500)은 그 자체로 한 품목 단어다.
+const MODEL_NAME_RE = /^[가-힣A-Za-z]+\d+$/
+
 // 이어지는 조각들을 한 목록으로 모은다: 수량만 있는 조각은 바로 앞 품목에 붙고, 앞 품목이 없으면 버린다.
 function splitChunk(chunk: string, items: string[]): void {
-  const tokens = chunk.split(/\s+/).filter(Boolean)
+  const tokens = chunk.split(/\s+/).filter(Boolean).flatMap(splitAttachedQty)
   let words: string[] = []
   let hasItem = false
   let hasQty = false
@@ -121,7 +131,7 @@ function splitChunk(chunk: string, items: string[]): void {
     }
     const modifier = MODIFIERS.has(t) || FORM_SUFFIXES.has(t)
     const brand = BRANDS.has(t.toLowerCase())
-    const itemWord = !modifier && !brand && (Object.hasOwn(STAPLES, t) || COMPOUNDS.has(t) || KEYWORDS_2P.has(t))
+    const itemWord = !modifier && !brand && (Object.hasOwn(STAPLES, t) || COMPOUNDS.has(t) || KEYWORDS_2P.has(t) || MODEL_NAME_RE.test(t))
     // 수량까지 적은 품목 뒤의 말은 새 품목이다. 품목 단어가 이미 있는데 또 품목 단어나 브랜드가 와도 새 품목이다(수식어는 제외).
     if (words.length && (hasQty || (!modifier && (itemWord || brand) && hasItem))) flush()
     words.push(t)

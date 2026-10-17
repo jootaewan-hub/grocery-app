@@ -122,3 +122,21 @@ describe('나누기 보강 2', () => {
     expect(parseLines('삼겹살 400g, x2')[0]).toMatchObject({ name: '삼겹살', spec: '400g', count: 2 })
   })
 })
+
+describe('붙여 쓴 수량', () => {
+  const view = (t: string) => parseLines(t).map((i) => [i.name, i.spec, i.count, i.specIsDefault])
+  it('우유 계란1판', () => expect(view('우유 계란1판')).toEqual([['우유', '900ml', 1, true], ['계란', '1판', 1, false]]))
+  it('우유 계란 1판', () => expect(view('우유 계란 1판')).toEqual([['우유', '900ml', 1, true], ['계란', '1판', 1, false]]))
+  it('계란1판', () => expect(view('계란1판')).toEqual([['계란', '1판', 1, false]]))
+  it('우유 계란30구', () => expect(view('우유 계란30구')).toEqual([['우유', '900ml', 1, true], ['계란', '30구', 1, false]]))
+  it('삼겹살600g 우유', () => expect(view('삼겹살600g 우유')).toEqual([['삼겹살', '600g', 1, false], ['우유', '900ml', 1, true]]))
+  it('우유x2 계란', () => expect(view('우유x2 계란')).toEqual([['우유', null, 2, false], ['계란', '10구', 1, true]]))
+  it('숫자가 이름인 말은 그대로 둔다', () => {
+    expect(view('비타500 우유')).toEqual([['비타500', null, 1, false], ['우유', '900ml', 1, true]])
+    expect(names('2080 치약')).toEqual(['2080 치약'])
+  })
+  it('망·근 단위', () => {
+    expect(parseLines('양파 1망')[0]).toMatchObject({ spec: '1망' })
+    expect(parseLines('삼겹살 1근')[0]).toMatchObject({ spec: '1근' })
+  })
+})
