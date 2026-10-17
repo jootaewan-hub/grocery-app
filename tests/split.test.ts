@@ -75,3 +75,29 @@ describe('기본 수량', () => {
     for (const k of Object.keys(STAPLES)) expect([k, categorize(k) !== '기타']).toEqual([k, true])
   })
 })
+
+describe('나누기 보강', () => {
+  it('품목 단어(사전 키워드)가 이어지면 나눈다', () => {
+    expect(names('라면 두부 계란')).toEqual(['라면', '두부', '계란'])
+    expect(names('식빵 우유 휴지')).toEqual(['식빵', '우유', '휴지'])
+  })
+  it('수식어는 항상 앞 품목에 붙는다', () => {
+    expect(names('한우 국거리 300g')).toEqual(['한우 국거리'])
+    expect(names('양파 국산 당근')).toEqual(['양파 국산', '당근'])
+  })
+  it('수량만 있는 조각은 앞 품목에 붙는다', () => {
+    expect(parseLines('양파, 2개')[0]).toMatchObject({ name: '양파', spec: null, count: 2, specIsDefault: false })
+    expect(parseLines('양파, 2개')).toHaveLength(1)
+  })
+  it('앞 품목이 없는 수량만의 입력은 버린다', () => {
+    expect(parseLines('600g')).toEqual([])
+    expect(parseLines('2개, 3개')).toEqual([])
+  })
+  it('숫자 사이의 쉼표는 나누지 않는다', () => expect(names('휴지 1,000원')).toEqual(['휴지 1,000원']))
+  it('두 단어짜리 상품은 합친다', () => {
+    const r = parseLines('딸기 우유')
+    expect(r).toHaveLength(1)
+    expect(r[0]).toMatchObject({ name: '딸기 우유', category: '유제품', spec: null, specIsDefault: false })
+    expect(names('딸기 우유 계란')).toEqual(['딸기 우유', '계란'])
+  })
+})

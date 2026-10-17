@@ -1,4 +1,4 @@
-import { categorize, type Category } from './categories'
+import { categorize, KEYWORD_TABLE, type Category } from './categories'
 import { STAPLES } from './staples'
 
 // nameCut: 이름이 길어 NAME_MAX자까지만 담았을 때만 true(미리보기에서 알린다).
@@ -68,17 +68,28 @@ const BRANDS = new Set(
 // 수량 토큰: 600g, 1.5kg, 1/2포기, 30구, 2개, x2, ×2
 const QTY_TOKEN_RE = new RegExp(String.raw`^(?:\d+\/\d+|\d+(?:\.\d+)?)(?:${UNITS}|개)$|^[x×]\d+$`, 'i')
 
-function splitChunk(chunk: string): string[] {
+// 품목 단어: 단독 품목 표(STAPLES)나 분류 사전의 두 글자 이상 키워드와 단어 전체가 같은 말.
+const KEYWORDS_2P = new Set(KEYWORD_TABLE.flatMap(([, kws]) => kws.filter((k) => Array.from(k).length >= 2)))
+// 수식어: 품목 단어여도 항상 현재 품목에 붙는다(새 품목을 열지도, 품목으로 세지도 않는다).
+const MODIFIERS = new Set([
+  '국거리', '구이용', '찌개용', '불고기용', '수육용', '볶음용', '튀김용', '다짐육', '왕교자', '물만두',
+  '국산', '국내산', '수입', '냉동', '생', '유기농', '무항생제', '한우', '한돈',
+])
+// 두 단어가 합쳐야 한 상품인 것(둘 다 품목 단어라서 그대로 두면 갈라진다)
+const COMPOUNDS = new Set(['딸기 우유', '바나나 우유', '초코 우유', '커피 우유'])
+const isQty = (t: string) => QTY_TOKEN_RE.test(t) || /^[x×] \d+$/i.test(t)
+
+// 이어지는 조각들을 한 목록으로 모은다: 수량만 있는 조각은 바로 앞 품목에 붙고, 앞 품목이 없으면 버린다.
+function splitChunk(chunk: string, items: string[]): void {
   const tokens = chunk.split(/\s+/).filter(Boolean)
-  const items: string[] = []
   let words: string[] = []
-  let hasStaple = false
+  let hasItem = false
   let hasQty = false
   let lastBrand = false // 방금 넣은 말이 브랜드: 뒤따르는 말이 오면 "브랜드 + 상품"으로 한 품목이 갖춰진다
   const flush = () => {
     if (words.length) items.push(words.join(' '))
     words = []
-    hasStaple = false
+    hasItem = false
     hasQty = false
     lastBrand = false
   }
@@ -86,28 +97,33 @@ function splitChunk(chunk: string): string[] {
     let t = tokens[i]
     // "x 6"처럼 띄어 쓴 개수는 한 덩어리로 본다
     if (/^[x×]$/i.test(t) && /^\d+$/.test(tokens[i + 1] ?? '')) t = `${t} ${tokens[++i]}`
-    if (words.length && (QTY_TOKEN_RE.test(t) || /^[x×] \d+$/i.test(t))) {
-      words.push(t)
-      hasQty = true
+    else if (COMPOUNDS.has(`${t} ${tokens[i + 1] ?? ''}`)) t = `${t} ${tokens[++i]}`
+    if (isQty(t)) {
+      if (words.length) {
+        words.push(t)
+        hasQty = true
+      } else if (items.length) {
+        items[items.length - 1] += ` ${t}` // 앞 조각의 품목에 붙인다
+      } // 앞 품목이 없으면 버린다
       continue
     }
-    const staple = Object.hasOwn(STAPLES, t)
+    const modifier = MODIFIERS.has(t)
     const brand = BRANDS.has(t.toLowerCase())
-    // 수량까지 적은 품목 뒤의 말은 새 품목이다. 단독 품목 단어가 이미 있는데 또 단독 품목 단어나 브랜드가 와도 새 품목이다.
-    if (words.length && (hasQty || ((staple || brand) && hasStaple))) flush()
+    const itemWord = !modifier && !brand && (Object.hasOwn(STAPLES, t) || COMPOUNDS.has(t) || KEYWORDS_2P.has(t))
+    // 수량까지 적은 품목 뒤의 말은 새 품목이다. 품목 단어가 이미 있는데 또 품목 단어나 브랜드가 와도 새 품목이다(수식어는 제외).
+    if (words.length && (hasQty || (!modifier && (itemWord || brand) && hasItem))) flush()
     words.push(t)
-    if (staple || (lastBrand && !brand)) hasStaple = true
+    if (itemWord || (lastBrand && !brand)) hasItem = true
     lastBrand = brand
   }
   flush()
-  return items
 }
 
 export function parseLines(text: string): ParsedItem[] {
   return text
     .normalize('NFC') // macOS·일부 키보드의 자모 분리(NFD) 입력 대비
-    .split(/[\r\n,，、]+/)
-    .flatMap(splitChunk)
+    .split(/[\r\n]+|(?<!\d),|,(?!\d)|[，、]/) // 숫자 사이의 쉼표(1,000)는 나누지 않는다
+    .reduce<string[]>((items, chunk) => (splitChunk(chunk, items), items), [])
     .map(parseLine)
     .filter((item): item is ParsedItem => item !== null)
 }
