@@ -1,0 +1,36 @@
+name: 식약처 목록 동기화
+
+# 매일 07:00(한국 시간)과 수동 실행. Supabase Edge Function food-alerts-sync를 부른다.
+# FOOD_SYNC_SECRET은 저장소 Actions 비밀값(함수의 SYNC_SECRET과 같은 값). 식품안전나라 키는 여기에 두지 않는다.
+on:
+  schedule:
+    - cron: '0 22 * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: food-alerts-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 식약처 목록 받아 저장
+        env:
+          FOOD_SYNC_SECRET: ${{ secrets.FOOD_SYNC_SECRET }}
+        run: |
+          if [ -z "$FOOD_SYNC_SECRET" ]; then
+            echo "FOOD_SYNC_SECRET가 비어 있어요"
+            exit 1
+          fi
+          code=$(curl -sS -o body.json -w '%{http_code}' -X POST \
+            "https://kifdfpbwiebfgvdumqjf.supabase.co/functions/v1/food-alerts-sync" \
+            -H "x-sync-secret: ${FOOD_SYNC_SECRET}")
+          cat body.json
+          echo
+          if [ "$code" != "200" ]; then
+            echo "동기화 실패: HTTP $code"
+            exit 1
+          fi
