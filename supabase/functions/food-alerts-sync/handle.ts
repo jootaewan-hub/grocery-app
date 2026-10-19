@@ -1,7 +1,9 @@
 // 식약처 목록 동기화. 세 서비스를 전부 받아 upsert하고 서비스마다 실행 기록을 남긴다.
 // 비밀번호 없이 부를 수 있으므로 함수가 스스로 막는다(사용자 결정 2026-10-19):
-//   세 목록을 모두 20시간 안에 받아 두었으면 받지 않고, 30분 안에 시도가 있었으면 429로 돌려보낸다.
+//   세 목록을 모두 20시간 안에 받아 두었으면 받지 않고, DB 잠금(30분에 한 번만 얻을 수 있음)을 얻지 못하면 429.
+//   잠금은 한 행 UPDATE ... WHERE locked_at < 30분 전 이라 동시에 불러도 하나만 얻는다.
 //   그래서 누가 주소를 알아도 실제로 받는 것은 하루 한 번 남짓이다(자료는 공개 자료, upsert라 지워지는 것 없음).
+//   응답에는 결과 종류만 낸다(마지막 시각·건수는 sync_runs에만).
 // 한 서비스가 실패해도 나머지는 계속한다. 기존 행은 지우지 않는다.
 // sync_runs.error는 로그인한 사용자가 읽을 수 있으므로 정해진 분류만 남긴다:
 //   식약처 오류 코드 + 키를 가린 짧은 문구 / 'network_error' / 'save_failed'.
@@ -12,10 +14,10 @@ export type SyncDeps = {
   apiKey: string | undefined
   fetchImpl: FetchLike
   now(): Date
-  /** sinceIso 이후의 실행 기록(서비스별 결과와 'attempt' 표시) */
+  /** sinceIso 이후의 실행 기록 */
   recentRuns(sinceIso: string): Promise<{ source: string; ok: boolean; ran_at: string }[]>
-  /** 받기 시작 표시. 30분 대기 판단에 쓴다. */
-  markAttempt(): Promise<void>
+  /** 잠금이 cutoffIso보다 오래됐을 때만 atIso로 바꾸고 true. 동시에 불러도 하나만 true. */
+  acquire(cutoffIso: string, atIso: string): Promise<boolean>
   upsert(rows: FoodAlertRow[]): Promise<void>
   recordRun(run: { source: FoodService; ok: boolean; rows: number; total: number | null; error: string | null }): Promise<void>
 }
@@ -51,14 +53,12 @@ export async function handle(req: Request, deps: SyncDeps): Promise<Response> {
   const lastOk = FOOD_SERVICES.map((s) =>
     recent.filter((r) => r.source === s && r.ok).reduce<string | null>((m, r) => (m && m > r.ran_at ? m : r.ran_at), null),
   )
-  if (lastOk.every((t) => t !== null)) {
-    const oldest = lastOk.reduce((a, b) => (a! < b! ? a : b))!
-    return json(200, { skipped: 'fresh', lastSyncAt: oldest })
+  if (lastOk.every((t) => t !== null)) return json(200, { status: 'skipped' })
+  if (!(await deps.acquire(new Date(now - COOLDOWN_MS).toISOString(), new Date(now).toISOString()))) {
+    return json(429, { status: 'cooldown' })
   }
-  if (recent.some((r) => Date.parse(r.ran_at) >= now - COOLDOWN_MS)) return json(429, { skipped: 'cooldown' })
-  await deps.markAttempt()
 
-  const results: { source: FoodService; ok: boolean; rows: number; total: number | null }[] = []
+  let allOk = true
   for (const source of FOOD_SERVICES) {
     let error: string | null = null
     let fetched: { rows: FoodAlertRow[]; total: number } | null = null
@@ -77,7 +77,7 @@ export async function handle(req: Request, deps: SyncDeps): Promise<Response> {
     const ok = error === null && fetched !== null
     const run = { source, ok, rows: ok ? fetched!.rows.length : 0, total: ok ? fetched!.total : null, error }
     await deps.recordRun(run)
-    results.push({ source, ok, rows: run.rows, total: run.total })
+    allOk &&= ok
   }
-  return json(results.every((r) => r.ok) ? 200 : 207, { results })
+  return allOk ? json(200, { status: 'done' }) : json(207, { status: 'partial' })
 }

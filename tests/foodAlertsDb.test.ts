@@ -8,6 +8,7 @@ const read = (p: string) => readFileSync(new URL(p, import.meta.url), 'utf8')
 const SHARED = read('./fixtures/shared-schema.sql')
 const GROCERY = read('../supabase/migrations/20261017000000_grocery_items.sql')
 const ALERTS = read('../supabase/migrations/20261019000000_grocery_food_alerts.sql')
+const LOCK = read('../supabase/migrations/20261019010000_grocery_sync_lock.sql')
 
 const A = '00000000-0000-4000-8000-00000000000a'
 const C = '00000000-0000-4000-8000-00000000000c'
@@ -75,6 +76,29 @@ beforeAll(async () => {
   )
   await db.exec(GROCERY)
   await db.exec(ALERTS)
+  await db.exec(LOCK)
+})
+
+describe('동기화 잠금', () => {
+  const take = (cutoff: string, at: string) =>
+    db.query<{ id: number }>(`update grocery.sync_lock set locked_at = $2 where id = 1 and locked_at < $1 returning id`, [cutoff, at])
+
+  it('처음에는 얻고, 30분 안에 다시 걸면 못 얻고, 30분이 지나면 다시 얻는다', async () => {
+    await db.exec(`update grocery.sync_lock set locked_at = '-infinity'`)
+    expect((await take('2026-10-19T09:30:00Z', '2026-10-19T10:00:00Z')).rows).toHaveLength(1)
+    expect((await take('2026-10-19T09:40:00Z', '2026-10-19T10:10:00Z')).rows).toHaveLength(0)
+    expect((await take('2026-10-19T10:01:00Z', '2026-10-19T10:31:00Z')).rows).toHaveLength(1)
+  })
+
+  it('잠금 행은 하나뿐이다', async () => {
+    expect(await errorOf(db.query(`insert into grocery.sync_lock (id, locked_at) values (2, now())`))).toMatch(/check/)
+  })
+
+  it('로그인한 사용자도 로그인 안 한 사용자도 잠금을 읽거나 바꾸지 못한다', async () => {
+    expect(await errorOf(as(A, 'select * from grocery.sync_lock'))).toMatch(/permission denied/)
+    expect(await errorOf(as(A, `update grocery.sync_lock set locked_at = now()`))).toMatch(/permission denied/)
+    expect(await errorOf(as(null, 'select * from grocery.sync_lock'))).toMatch(/permission denied/)
+  })
 })
 
 beforeEach(async () => {

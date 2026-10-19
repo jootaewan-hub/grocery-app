@@ -32,6 +32,7 @@ function deps(over: Partial<SyncDeps> = {}, recent: RecentRun[] = []) {
   const runs: Run[] = []
   const since: string[] = []
   let attempts = 0
+  const acquires: [string, string][] = []
   const a = api({ I0490: 3, I2620: 2, I2715: 1200 })
   const d: SyncDeps = {
     apiKey: 'SECRETKEY',
@@ -41,14 +42,16 @@ function deps(over: Partial<SyncDeps> = {}, recent: RecentRun[] = []) {
       since.push(s)
       return recent
     },
-    markAttempt: async () => {
+    acquire: async (cutoff, at) => {
+      acquires.push([cutoff, at])
       attempts++
+      return true
     },
     upsert: async (rows) => { upserts.push(rows) },
     recordRun: async (run) => { runs.push(run) },
     ...over,
   }
-  return { d, upserts, runs, calls: a.calls, since, attempts: () => attempts }
+  return { d, upserts, runs, calls: a.calls, since, attempts: () => attempts, acquires }
 }
 
 const post = () => new Request('https://x/functions/v1/food-alerts-sync', { method: 'POST' })
@@ -59,7 +62,7 @@ describe('food-alerts-sync: 하루 한 번만', () => {
     const { d, calls, upserts, attempts } = deps({}, okAll(ago(19 * H)))
     const res = await handle(post(), d)
     expect(res.status).toBe(200)
-    expect(await res.json()).toEqual({ skipped: 'fresh', lastSyncAt: ago(19 * H) })
+    expect(await res.json()).toEqual({ status: 'skipped' }) // 마지막 시각·건수는 응답에 내지 않는다
     expect(calls).toHaveLength(0)
     expect(upserts).toHaveLength(0)
     expect(attempts()).toBe(0)
@@ -80,30 +83,46 @@ describe('food-alerts-sync: 하루 한 번만', () => {
     expect(attempts()).toBe(1)
   })
 
-  it('30분 안에 시도가 있었으면 429이고 받지 않는다(실패가 이어져도 마구 부르지 않게)', async () => {
-    const { d, calls, attempts } = deps({}, [{ source: 'attempt', ok: false, ran_at: ago(10 * 60_000) }])
+  it('잠금을 얻지 못하면(30분 안에 다른 시도) 429이고 받지 않는다', async () => {
+    const { d, calls } = deps({ acquire: async () => false })
     const res = await handle(post(), d)
     expect(res.status).toBe(429)
-    expect(await res.json()).toEqual({ skipped: 'cooldown' })
+    expect(await res.json()).toEqual({ status: 'cooldown' })
     expect(calls).toHaveLength(0)
-    expect(attempts()).toBe(0)
   })
 
-  it('30분이 지난 실패 뒤에는 다시 받는다', async () => {
-    const { d, calls } = deps({}, [{ source: 'I0490', ok: false, ran_at: ago(31 * 60_000) }])
-    expect((await handle(post(), d)).status).toBe(200)
-    expect(calls.length).toBeGreaterThan(0)
+  it('잠금은 30분 전을 기준으로, 지금 시각으로 건다', async () => {
+    const { d, acquires } = deps()
+    await handle(post(), d)
+    expect(acquires).toEqual([[ago(30 * 60_000), NOW.toISOString()]])
   })
 
-  it('받기 전에 시도를 먼저 기록한다', async () => {
+  it('동시에 여러 번 불러도 잠금을 얻은 한 번만 받는다', async () => {
+    let locked = false
+    const a = api({ I0490: 1 })
+    const { d } = deps({
+      fetchImpl: a.impl,
+      acquire: async () => {
+        await Promise.resolve()
+        if (locked) return false
+        locked = true
+        return true
+      },
+    })
+    const statuses = await Promise.all([1, 2, 3, 4, 5].map(() => handle(post(), d).then((r) => r.status)))
+    expect(statuses.filter((s) => s === 429)).toHaveLength(4)
+    expect(a.calls.filter((u) => u.includes('/I0490/'))).toHaveLength(1)
+  })
+
+  it('잠금을 얻은 뒤에 받는다', async () => {
     const order: string[] = []
     const a = api({ I0490: 1 })
     const { d } = deps({
-      markAttempt: async () => { order.push('attempt') },
+      acquire: async () => { order.push('lock'); return true },
       fetchImpl: async (u) => { order.push('fetch'); return a.impl(u) },
     })
     await handle(post(), d)
-    expect(order[0]).toBe('attempt')
+    expect(order[0]).toBe('lock')
   })
 })
 
@@ -132,13 +151,7 @@ describe('food-alerts-sync: 받기와 기록', () => {
       { source: 'I2620', ok: true, rows: 2, total: 2, error: null },
       { source: 'I2715', ok: true, rows: 1200, total: 1200, error: null },
     ])
-    expect(await res.json()).toEqual({
-      results: [
-        { source: 'I0490', ok: true, rows: 3, total: 3 },
-        { source: 'I2620', ok: true, rows: 2, total: 2 },
-        { source: 'I2715', ok: true, rows: 1200, total: 1200 },
-      ],
-    })
+    expect(await res.json()).toEqual({ status: 'done' }) // 서비스별 결과는 sync_runs에만 남긴다
   })
 
   it('한 서비스가 실패해도 나머지는 계속하고 207', async () => {
