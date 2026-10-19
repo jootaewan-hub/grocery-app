@@ -12,7 +12,7 @@ Deno.serve((req) =>
   handle(req, {
     syncSecret: Deno.env.get('SYNC_SECRET'),
     apiKey: Deno.env.get('FOODSAFETY_API_KEY'),
-    fetchImpl: (url) => fetch(url),
+    fetchImpl: (url) => fetch(url, { signal: AbortSignal.timeout(20_000) }), // 한 번에 20초까지
     upsert: async (rows) => {
       const { error } = await admin.schema('grocery').from('food_alerts').upsert(
         rows.map((r) => ({ ...r, fetched_at: new Date().toISOString() })),

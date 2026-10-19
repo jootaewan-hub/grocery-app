@@ -95,13 +95,39 @@ describe('food-alerts-sync', () => {
     expect(upserts.map((u) => u.length)).toEqual([3, 1])
   })
 
-  it('저장이 실패해도 그 서비스만 실패로 기록한다', async () => {
+  it('저장이 실패해도 그 서비스만 실패로 기록하고, 기록에는 정해진 분류만 남긴다', async () => {
     let n = 0
-    const { d, runs } = deps({ upsert: async () => { if (n++ === 0) throw new Error('db down') } })
+    const { d, runs } = deps({ upsert: async () => { if (n++ === 0) throw new Error('db down: relation detail') } })
     const res = await handle(post('S3CRET'), d)
     expect(res.status).toBe(207)
-    expect(runs[0]).toMatchObject({ source: 'I0490', ok: false, error: 'db down' })
+    expect(runs[0]).toMatchObject({ source: 'I0490', ok: false, error: 'save_failed' })
     expect(runs.slice(1).every((r) => r.ok)).toBe(true)
+  })
+
+  it('네트워크 오류는 network_error로만 남긴다', async () => {
+    const { d, runs } = deps({ fetchImpl: async () => { throw new TypeError('fetch failed https://x/SECRETKEY/I0490') } })
+    await handle(post('S3CRET'), d)
+    expect(runs.map((r) => r.error)).toEqual(['network_error', 'network_error', 'network_error'])
+  })
+
+  it('API 오류 문구는 키(그대로·인코딩)를 가리고 200자로 자르고 제어 문자를 뺀다', async () => {
+    const key = 'K+Y/1'
+    const msg = `bad ${key} ${encodeURIComponent(key)}\n` + 'x'.repeat(300)
+    const impl: FetchLike = async () => ({ ok: true, status: 200, json: async () => ({ I0490: { RESULT: { CODE: 'ERROR-300', MSG: msg } }, I2620: { RESULT: { CODE: 'INFO-200' } }, I2715: { RESULT: { CODE: 'INFO-200' } } }) })
+    const { d, runs } = deps({ apiKey: key, fetchImpl: impl })
+    await handle(post('S3CRET'), d)
+    const err = runs[0].error!
+    expect(err.startsWith('ERROR-300 bad *** ***')).toBe(true)
+    expect(err).not.toContain(key)
+    expect(err).not.toContain(encodeURIComponent(key))
+    expect(err).not.toMatch(/[\u0000-\u001f]/)
+    expect(err.length).toBeLessThanOrEqual(200)
+  })
+
+  it('비밀값이 같으면 통과한다(길이·앞부분이 같은 값은 거부)', async () => {
+    expect((await handle(post('S3CRET'), deps().d)).status).toBe(200)
+    expect((await handle(post('S3CRET!'), deps().d)).status).toBe(401)
+    expect((await handle(post('S3CREX'), deps().d)).status).toBe(401)
   })
 
   it('응답과 기록에 키가 들어가지 않는다', async () => {

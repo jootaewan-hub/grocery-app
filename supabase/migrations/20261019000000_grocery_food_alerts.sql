@@ -37,7 +37,10 @@ create policy food_alerts_read on grocery.food_alerts for select to authenticate
 create policy sync_runs_read on grocery.sync_runs for select to authenticated using (true);
 
 revoke all on grocery.food_alerts, grocery.sync_runs from public, anon, authenticated;
-grant select on grocery.food_alerts, grocery.sync_runs to authenticated;
+-- raw(원본 응답: 업소 주소·전화 등)는 확인용으로만 남기고 로그인한 사용자에게는 보여 주지 않는다.
+grant select (source, source_id, product_name, maker, reason, grade, pack_unit, barcode, report_no,
+  registered_on, ends_on, fetched_at) on grocery.food_alerts to authenticated;
+grant select on grocery.sync_runs to authenticated;
 grant select, insert, update, delete on grocery.food_alerts, grocery.sync_runs to service_role;
 
 -- 내 가구의 아직 사지 않은 품목과 비슷한 식약처 기록. RLS를 그대로 따르도록 security invoker.
@@ -67,7 +70,8 @@ as $$
     where i.bought_at is null
   ),
   cand as (
-    select a.*,
+    -- raw는 authenticated가 못 읽으므로 쓰는 열만 고른다(security invoker)
+    select a.source, a.source_id, a.product_name, a.maker, a.reason, a.grade, a.pack_unit, a.registered_on,
            regexp_replace(lower(a.product_name), '[^가-힣a-z0-9]', '', 'g') as pn,
            regexp_replace(lower(coalesce(a.maker, '')), '[^가-힣a-z0-9]', '', 'g') as mk
     from grocery.food_alerts a

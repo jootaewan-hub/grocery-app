@@ -137,4 +137,12 @@ describe('식약처 대조', () => {
     expect(await errorOf(as(A, `insert into grocery.sync_runs (source, ok) values ('I0490', true)`))).toMatch(/permission denied/)
     expect(await errorOf(as(null, 'select * from grocery.food_alerts'))).toMatch(/permission denied/)
   })
+
+  it('원본 응답(raw)은 로그인한 사용자도 못 읽고, 대조 함수는 그대로 쓴다', async () => {
+    await alert({ id: '1', product: '비비고 왕교자' })
+    await item(hhA, A, '비비고 왕교자')
+    expect(await errorOf(as(A, 'select raw from grocery.food_alerts'))).toMatch(/permission denied/)
+    expect(await as(A, 'select product_name from grocery.food_alerts')).toEqual([{ product_name: '비비고 왕교자' }])
+    expect(await alertsFor(A)).toHaveLength(1)
+  })
 })

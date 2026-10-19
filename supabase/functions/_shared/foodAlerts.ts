@@ -30,7 +30,10 @@ export class FoodApiError extends Error {
 }
 
 const PAGE = 1000
-const BASE = 'http://openapi.foodsafetykorea.go.kr/api'
+// https만 쓴다: 키가 주소에 들어가므로 평문 http로는 보내지 않는다(2026-10-19 인증서 확인).
+const BASE = 'https://openapi.foodsafetykorea.go.kr/api'
+/** 전체 건수 상한. 2026-10 기준 가장 큰 서비스(I2715)가 5,013건이라 넉넉히 둔다. 응답이 이상하게 크면 멈춘다. */
+export const MAX_TOTAL = 100_000
 
 /** '2026-10-16 17:53:27', '2026.03.23', '20261015' → '2026-10-16'. 그 밖·없는 날짜는 null. */
 export function parseFoodDate(v: unknown): string | null {
@@ -108,27 +111,33 @@ export function toAlertRow(service: FoodService, row: Record<string, unknown>): 
 
 type ServiceBody = { total_count?: string; row?: Record<string, unknown>[]; RESULT?: { CODE?: string; MSG?: string } }
 
-/** 한 서비스의 전체 목록을 1000건씩 받는다. INFO-200(자료 없음)은 빈 결과, 그 밖의 코드는 FoodApiError. */
+/** 한 서비스의 전체 목록을 1000건씩 받는다. INFO-200(자료 없음)은 빈 결과, 그 밖의 코드는 FoodApiError.
+ *  전체 건수는 첫 응답 값만 쓴다(뒤 응답이 늘려도 따르지 않음). 정수가 아니거나 MAX_TOTAL을 넘으면 멈춘다. */
 export async function fetchService(
   service: FoodService,
   key: string,
   fetchImpl: FetchLike,
 ): Promise<{ rows: FoodAlertRow[]; total: number }> {
   const rows: FoodAlertRow[] = []
-  let total = Infinity
-  for (let start = 1; start <= total; start += PAGE) {
-    const end = Number.isFinite(total) ? Math.min(start + PAGE - 1, total) : start + PAGE - 1
+  let total: number | null = null
+  for (let start = 1; total === null || start <= total; start += PAGE) {
+    const end = total === null ? PAGE : Math.min(start + PAGE - 1, total)
     const res = await fetchImpl(`${BASE}/${encodeURIComponent(key)}/${service}/json/${start}/${end}`)
     if (!res.ok) throw new FoodApiError(`HTTP-${res.status}`, `${service} 응답 실패`)
     const body = ((await res.json()) as Record<string, ServiceBody | undefined>)[service]
     const code = body?.RESULT?.CODE ?? 'NO-RESULT'
     if (code === 'INFO-200') return { rows: [], total: 0 }
     if (code !== 'INFO-000') throw new FoodApiError(code, body?.RESULT?.MSG ?? `${service} 오류`)
-    total = Number(body?.total_count ?? 0)
-    for (const r of body?.row ?? []) {
+    if (total === null) {
+      const t = Number(body?.total_count)
+      if (!Number.isInteger(t) || t < 0) throw new FoodApiError('BAD-TOTAL', `${service} 전체 건수가 이상해요`)
+      if (t > MAX_TOTAL) throw new FoodApiError('TOO-MANY', `${service} 전체 건수가 상한(${MAX_TOTAL})을 넘어요`)
+      total = t
+    }
+    for (const r of (body?.row ?? []).slice(0, PAGE)) {
       const row = toAlertRow(service, r)
       if (row) rows.push(row)
     }
   }
-  return { rows, total: Number.isFinite(total) ? total : 0 }
+  return { rows, total: total ?? 0 }
 }

@@ -87,6 +87,47 @@ describe('행 변환', () => {
   })
 })
 
+describe('보안', () => {
+  it('https로만 부른다', async () => {
+    const f = fakeFetch('I0490', 3)
+    await fetchService('I0490', 'KEY', f.impl)
+    expect(f.urls[0].startsWith('https://openapi.foodsafetykorea.go.kr/api/')).toBe(true)
+  })
+
+  it('전체 건수는 첫 응답 값만 믿고 뒤에서 늘어나도 따르지 않는다', async () => {
+    const urls: string[] = []
+    let call = 0
+    const impl: FetchLike = async (url) => {
+      urls.push(url)
+      call++
+      const n = call === 1 ? 1000 : 5 // 두 번째 응답이 total을 99999로 부풀려도 무시
+      return {
+        ok: true, status: 200,
+        json: async () => ({ I0490: { total_count: call === 1 ? '1005' : '99999', row: Array.from({ length: n }, (_, i) => ({ RTRVLDSUSE_SEQ: `${call}-${i}`, PRDTNM: 'p' })), RESULT: { CODE: 'INFO-000' } } }),
+      }
+    }
+    const res = await fetchService('I0490', 'KEY', impl)
+    expect(urls).toHaveLength(2)
+    expect(res.total).toBe(1005)
+  })
+
+  it('전체 건수가 숫자가 아니거나 너무 크면 FoodApiError', async () => {
+    for (const total of ['abc', '-1', '1.5', '100001']) {
+      const impl: FetchLike = async () => ({ ok: true, status: 200, json: async () => ({ I0490: { total_count: total, row: [], RESULT: { CODE: 'INFO-000' } } }) })
+      const err = await fetchService('I0490', 'KEY', impl).catch((e) => e)
+      expect(err, total).toBeInstanceOf(FoodApiError)
+    }
+  })
+
+  it('한 페이지에 1000건이 넘게 와도 1000건까지만 쓴다', async () => {
+    const impl: FetchLike = async () => ({
+      ok: true, status: 200,
+      json: async () => ({ I0490: { total_count: '1000', row: Array.from({ length: 1500 }, (_, i) => ({ RTRVLDSUSE_SEQ: String(i), PRDTNM: 'p' })), RESULT: { CODE: 'INFO-000' } } }),
+    })
+    expect((await fetchService('I0490', 'KEY', impl)).rows).toHaveLength(1000)
+  })
+})
+
 describe('나눠 받기', () => {
   it('1000건이 넘으면 나눠서 모두 받는다', async () => {
     const f = fakeFetch('I2715', 2500)
