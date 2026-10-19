@@ -7,14 +7,14 @@ import type { Membership } from '../lib/session'
 import type { ListStore } from '../lib/store'
 import type { Item, PriceCompare } from '../lib/types'
 import { josa } from '../lib/format'
+import { EMPTY_EXTRAS, type ItemExtras } from '../lib/products'
 import AddSheet from './AddSheet'
 import AlertSheet from './AlertSheet'
+import CandidateSheet from './CandidateSheet'
 import ListRow from './ListRow'
 
 const UNDO_MS = 5000
 
-// 가격은 아직 없다(계획 ④). 빈 값으로 넘겨 모두 "확인 못 함"이 되게 한다.
-const NO_PRICES: ReadonlyMap<string, PriceCompare> = new Map()
 
 type Props = {
   store: ListStore
@@ -42,6 +42,37 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   const [alertsFailed, setAlertsFailed] = useState(false)
   const [alertItem, setAlertItem] = useState<Item | null>(null)
   const alertSeq = useRef(0)
+  const [extras, setExtras] = useState<ItemExtras>(EMPTY_EXTRAS)
+  const [extrasReady, setExtrasReady] = useState(false) // 한 번이라도 받아 왔는가
+  const extrasSeq = useRef(0)
+  const requested = useRef(new Set<string>()) // 이 화면에서 후보 찾기를 이미 부른 품목
+  const [pickItem, setPickItem] = useState<Item | null>(null)
+
+  // 후보 상태·오늘 최저가·고른 상품명. 실패해도 목록은 그대로(가격은 "확인 못 함"으로 남는다).
+  const refetchExtras = useCallback(() => {
+    const mine = ++extrasSeq.current
+    store.extras().then(
+      (x) => {
+        if (mine !== extrasSeq.current) return
+        setExtras(x)
+        setExtrasReady(true)
+      },
+      () => {},
+    )
+  }, [store])
+
+  // 다나와 후보 찾기. 서버가 10초 간격으로 줄을 세우므로 기다리지 않고, 끝나면 다시 읽는다.
+  const find = useCallback(
+    (ids: string[]) => {
+      for (const id of ids) {
+        if (requested.current.has(id)) continue
+        requested.current.add(id)
+        store.findCandidates(id).then(refetchExtras, refetchExtras)
+      }
+      if (ids.length) window.setTimeout(refetchExtras, 300) // '후보 찾는 중'을 바로 보이게
+    },
+    [store, refetchExtras],
+  )
 
   // 식약처 대조는 목록과 따로 불러온다. 실패해도 목록은 그대로 보이고 한 줄로 알린다.
   const refetchAlerts = useCallback(() => {
@@ -67,6 +98,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
         setLoadState('ready')
         setStaleError(false)
         refetchAlerts() // 품목이 바뀌면 대조도 다시 한다
+        refetchExtras()
       },
       () => {
         if (mine !== seq.current) return
@@ -74,7 +106,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
         setStaleError(true)
       },
     )
-  }, [store, refetchAlerts])
+  }, [store, refetchAlerts, refetchExtras])
 
   // 처음 불러오기, 실시간 구독(구독마다 채널이 하나 생기므로 정리 때 꼭 해제), 화면으로 돌아왔을 때 다시 불러오기.
   useEffect(() => {
@@ -220,8 +252,30 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   }
 
   const add = async (parsed: ParsedItem[]) => {
-    await store.add(parsed)
+    const made = await store.add(parsed)
     refetch()
+    find(made.map((i) => i.id))
+  }
+
+  // 다른 기기에서 담았거나 예전에 담아 후보 찾기를 한 적 없는 품목도 찾는다
+  useEffect(() => {
+    if (!items || !extrasReady) return
+    find(items.filter((i) => !i.boughtAt && !i.productKey && !extras.searches.has(i.id)).map((i) => i.id))
+    // extras를 한 번 받은 뒤에만 판단한다(빈 extras로 모든 품목을 다시 찾지 않게)
+  }, [items, extras, extrasReady, find])
+
+  const pick = (item: Item, productId: string, qty: number) => {
+    setPickItem(null)
+    store.choose(item.id, productId, qty).then(
+      () => {
+        refetch()
+        store.checkPrice(item.id).then(refetchExtras, () => {
+          refetchExtras()
+          showNotice({ kind: 'error', text: '다나와 가격을 지금 불러오지 못했어요.' })
+        })
+      },
+      () => showNotice({ kind: 'error', text: '상품을 고르지 못했어요. 잠시 뒤 다시 해 주세요.' }),
+    )
   }
 
   const chooseView = (v: ListViewMode) => {
@@ -238,13 +292,18 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
     opener.current?.focus({ preventScroll: true })
   }
 
+  const prices = useMemo(() => {
+    const m = new Map<string, PriceCompare>()
+    for (const [id, p] of extras.prices) m.set(id, { onlineBest: p.price, storeBase: null })
+    return m
+  }, [extras])
   const visible = useMemo(() => (items ?? []).filter((i) => !hidden.has(i.id)), [items, hidden])
   const sections = useMemo(
     () => {
       const levels = (alerts ?? EMPTY_ALERTS).levels
-      return view === 'category' ? groupByCategory(visible, levels) : groupByWhere(visible, levels, NO_PRICES)
+      return view === 'category' ? groupByCategory(visible, levels) : groupByWhere(visible, levels, prices)
     },
-    [view, visible, alerts],
+    [view, visible, alerts, prices],
   )
   const status = alerts ? listStatus(alerts.syncedAt) : null
 
@@ -252,7 +311,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   useEffect(() => {
     if (visible.length === 0) setEditing(false)
   }, [visible.length])
-  const sum = summarize(visible, NO_PRICES)
+  const sum = summarize(visible, prices)
   const ready = loadState === 'ready' && items !== null
 
   return (
@@ -303,6 +362,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
               <div className="summary-cell">
                 <p className="summary-k">찾은 최저가 합계</p>
                 <p className="summary-v num">{sum.lowestTotal === null ? '확인 못 함' : `${sum.lowestTotal.toLocaleString('ko-KR')}원`}</p>
+                {sum.lowestTotal !== null && <p className="summary-note">배송비 제외</p>}
               </div>
               <div className="summary-cell">
                 <p className="summary-k">확인 못 함</p>
@@ -372,6 +432,10 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
                         onToggle={() => toggle(item)}
                         onRemove={() => remove(item)}
                         editing={editing}
+                        search={extras.searches.get(item.id) ?? null}
+                        price={extras.prices.get(item.id) ?? null}
+                        productName={extras.productNames.get(item.id) ?? null}
+                        onPick={() => setPickItem(item)}
                       />
                     ))}
                   </ul>
@@ -401,6 +465,14 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
       </div>
 
       {sheetOpen && <AddSheet onAdd={add} onClose={closeSheet} />}
+      {pickItem && (
+        <CandidateSheet
+          item={pickItem}
+          store={store}
+          onPicked={(productId, qty) => pick(pickItem, productId, qty)}
+          onClose={() => setPickItem(null)}
+        />
+      )}
       {alertItem && (
         <AlertSheet
           itemName={alertItem.name}

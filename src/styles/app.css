@@ -278,3 +278,43 @@ button { touch-action: manipulation; -webkit-user-select: none; user-select: non
   .is-closing .sheet { animation: fade-out var(--dur-quick) linear forwards; }
   .notice { animation: fade-in var(--dur-quick) linear; }
 }
+
+/* 가격 확인(④-1): 목록 줄의 최저가·상품 고르기, 요약 주석 */
+.row-price { flex: none; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; text-align: right; }
+.row-price-v { font-size: 15px; font-weight: 700; line-height: 1.3; }
+.row-price-where { font-size: 12px; font-weight: 500; color: var(--ink-muted); line-height: 1.3; max-width: 128px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-pick {
+  position: relative; flex: none; min-height: 32px; padding: 0 12px; border: 0; border-radius: var(--r-btn); cursor: pointer;
+  background: var(--ink); color: var(--on-ink); font: inherit; font-size: 13px; font-weight: 700;
+}
+.row-pick::before { content: ''; position: absolute; inset: -6px -4px; }
+.row-pick:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.summary-note { margin-top: 2px; font-size: 12px; font-weight: 500; color: var(--ink-muted); }
+
+/* 상품 고르기 시트 */
+.cand-search { display: flex; gap: 8px; margin: 4px 0 8px; }
+.cand-input {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border: 1px solid var(--oat-deep); border-radius: var(--r-btn);
+  background: var(--canvas); color: var(--ink); font: inherit; font-size: 16px;
+}
+.cand-input:focus-visible { outline: 2px solid var(--ink); outline-offset: 1px; }
+.cand-source, .cand-state { margin: 4px 0 12px; font-size: 13px; color: var(--ink-muted); }
+.cand-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.cand-card { padding: 12px; background: var(--oat); border-radius: var(--r-group); }
+.cand-head { display: flex; gap: 12px; align-items: center; }
+.cand-img { flex: none; width: 56px; height: 56px; border-radius: 10px; background: var(--canvas); object-fit: contain; }
+.cand-title { min-width: 0; }
+.cand-name { font-size: 15px; font-weight: 600; line-height: 1.4; }
+.cand-rating { margin-top: 2px; font-size: 12px; color: var(--ink-muted); }
+.cand-variants { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.cand-variant {
+  display: grid; grid-template-columns: 56px auto 1fr; align-items: baseline; gap: 10px; min-height: 48px; padding: 8px 12px;
+  border: 0; border-radius: var(--r-btn); background: var(--canvas); color: var(--ink); font: inherit; text-align: left; cursor: pointer;
+}
+.cand-variant:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+.cand-qty { font-size: 17px; font-weight: 700; }
+.cand-price { font-size: 15px; font-weight: 700; }
+.cand-unit { font-size: 12px; color: var(--ink-muted); justify-self: end; text-align: right; }
+@media (hover: hover) {
+  .cand-variant:hover { background: var(--oat-deep); }
+}

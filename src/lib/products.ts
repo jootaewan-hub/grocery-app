@@ -42,6 +42,22 @@ export function kstDay(iso: string): string {
   return new Date(new Date(iso).getTime() + 9 * 3600_000).toISOString().slice(0, 10)
 }
 
+/** 확인 시각: 오늘이면 "오늘 09:10", 아니면 "10월 19일 23:59"(한국 시간) */
+export function checkedText(iso: string, now: Date = new Date()): string {
+  const k = new Date(new Date(iso).getTime() + 9 * 3600_000)
+  const hm = `${String(k.getUTCHours()).padStart(2, '0')}:${String(k.getUTCMinutes()).padStart(2, '0')}`
+  return kstDay(iso) === kstDay(now.toISOString()) ? `오늘 ${hm}` : `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 ${hm}`
+}
+
+/** 상품을 고르기 전 목록 줄의 둘째 줄 */
+export function searchLabel(s: ItemSearch | null): string {
+  if (!s) return '상품 고르기 전'
+  if (s.status === 'searching') return '후보 찾는 중'
+  if (s.status === 'done') return `후보 ${s.candidateCount}개 찾음`
+  if (s.status === 'none') return '후보를 찾지 못했어요'
+  return '후보를 찾지 못했어요(다시 시도)'
+}
+
 const valid = (p: number) => Number.isFinite(p) && p > 0
 
 /** 오늘·같은 수량 줄(same, 싼 순)과 나머지(other, 수량·싼 순), 그리고 가장 싼 값. */

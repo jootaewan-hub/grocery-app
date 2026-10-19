@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { kstDay, SHORTCUTS, splitLines, type PriceLine } from '../src/lib/products'
+import { checkedText, kstDay, searchLabel, SHORTCUTS, splitLines, type PriceLine } from '../src/lib/products'
 
 const line = (p: Partial<PriceLine>): PriceLine => ({
   price: 10000, seller: null, source: 'danawa', qty: 1, delivery: null, checkedAt: '2026-10-20T01:00:00Z',
@@ -53,5 +53,23 @@ describe('바로가기', () => {
       expect(u.startsWith('https://')).toBe(true)
       expect(u).toContain(encodeURIComponent('비비고 왕교자&1'))
     }
+  })
+})
+
+describe('확인 시각 문구', () => {
+  const now = new Date('2026-10-20T03:00:00Z') // 한국 12:00
+  it('오늘이면 "오늘 HH:MM", 아니면 "M월 D일 HH:MM"(한국 시간)', () => {
+    expect(checkedText('2026-10-20T00:10:00Z', now)).toBe('오늘 09:10')
+    expect(checkedText('2026-10-19T14:59:00Z', now)).toBe('10월 19일 23:59')
+  })
+})
+
+describe('목록 줄의 후보 상태 문구', () => {
+  it('상태마다 하는 일 그대로', () => {
+    expect(searchLabel({ status: 'searching', candidateCount: 0, updatedAt: 't' })).toBe('후보 찾는 중')
+    expect(searchLabel({ status: 'done', candidateCount: 8, updatedAt: 't' })).toBe('후보 8개 찾음')
+    expect(searchLabel({ status: 'none', candidateCount: 0, updatedAt: 't' })).toBe('후보를 찾지 못했어요')
+    expect(searchLabel({ status: 'error', candidateCount: 0, updatedAt: 't' })).toBe('후보를 찾지 못했어요(다시 시도)')
+    expect(searchLabel(null)).toBe('상품 고르기 전')
   })
 })

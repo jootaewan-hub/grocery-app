@@ -30,6 +30,9 @@ const shots = [
   // 식약처 비슷한 기록 배지를 눌러 연 경고 시트(데모의 가상 기록)
   ...BOTH.map((c) => ({ name: `alert-sheet-390-${c}`, path: '/?demo=1', w: 390, c, alert: '비슷한 제품 기록' })),
   { name: 'alert-sheet-1280-light', path: '/?demo=1', w: 1280, c: 'light', alert: '비슷한 제품 기록' },
+  // 상품 고르기 시트(데모 후보, 가격은 예시)
+  ...BOTH.map((c) => ({ name: `candidate-sheet-390-${c}`, path: '/?demo=1', w: 390, c, pick: true })),
+  { name: 'candidate-sheet-1280-light', path: '/?demo=1', w: 1280, c: 'light', pick: true },
   ...BOTH.map((c) => ({ name: `list-empty-390-${c}`, path: '/?demo=empty', w: 390, c, wait: '아직 담은 게 없어요' })),
   { name: 'list-error-390-light', path: '/?demo=error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
   ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `login-${w}-${c}`, path: '/?demo=login&error=1', w, c }))),
@@ -72,6 +75,11 @@ try {
     if (s.groupRemove) {
       await page.locator('.group-remove').first().click()
       await page.getByRole('button', { name: '되돌리기' }).waitFor()
+    }
+    if (s.pick) {
+      await page.getByRole('button', { name: '상품 고르기' }).first().click()
+      await page.getByRole('dialog').waitFor()
+      await page.locator('.cand-variant').first().waitFor()
     }
     if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
     if (s.remove) {

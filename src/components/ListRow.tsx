@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { BADGE } from '../lib/alerts'
+import { checkedText, searchLabel, type ItemPrice, type ItemSearch } from '../lib/products'
 import type { AlertLevel, Item, Member } from '../lib/types'
 import { josa, won } from '../lib/format'
 
@@ -19,6 +20,13 @@ type Props = {
   onRemove: () => void
   /** 편집 중이면 밀지 않아도 줄마다 "빼기"가 보인다 */
   editing?: boolean
+  /** 후보 찾기 상태(상품을 고르기 전) */
+  search?: ItemSearch | null
+  /** 오늘 찾은 최저가(고른 상품·수량 기준) */
+  price?: ItemPrice | null
+  productName?: string | null
+  /** 상품 고르기 시트 열기 */
+  onPick?: () => void
 }
 
 function whoClass(m: Member): string {
@@ -27,7 +35,10 @@ function whoClass(m: Member): string {
   return 'who-dot who-none'
 }
 
-export default function ListRow({ item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove, editing = false }: Props) {
+export default function ListRow({
+  item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove, editing = false,
+  search = null, price = null, productName = null, onPick,
+}: Props) {
   const bought = item.boughtAt !== null
   const adder = members.find((m) => m.userId === item.addedBy)
   const buyer = members.find((m) => m.userId === item.boughtBy)
@@ -101,6 +112,9 @@ export default function ListRow({ item, members, showNoCompare, alertLevel, onAl
   const offset = editing ? 0 : dx ?? (open ? -ACTION_W : 0)
   const label = [item.name, item.spec].filter(Boolean).join(' ')
 
+  // 상품을 아직 안 골랐고 후보 찾기가 끝났으면(못 찾았어도 다시 검색할 수 있게) 고르기 버튼
+  const canPick = !bought && item.productKey === null && search !== null && search.status !== 'searching'
+
   const second: ReactNode[] = []
   if (bought) {
     second.push(buyer ? `${buyer.displayName}${josa(buyer.displayName, '이', '가')} 샀어요` : '샀어요')
@@ -114,7 +128,7 @@ export default function ListRow({ item, members, showNoCompare, alertLevel, onAl
         </span>,
       )
     }
-    if (item.productKey === null) second.push('상품 고르기 전')
+    second.push(item.productKey === null ? searchLabel(search) : (productName ?? '상품 고름'))
     if (showNoCompare) second.push('비교 못 함')
   }
 
@@ -196,8 +210,27 @@ export default function ListRow({ item, members, showNoCompare, alertLevel, onAl
           >
             빼기
           </button>
+        ) : bought ? null : canPick && onPick ? (
+          <button
+            type="button"
+            className="row-pick"
+            data-touch-extend
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onPick()
+            }}
+          >
+            상품 고르기
+          </button>
+        ) : price ? (
+          <span className="row-price">
+            <span className="row-price-v num">{won(price.price)}</span>
+            <span className="row-price-where">{price.seller ?? '최저가'}</span>
+            <span className="row-price-where">다나와, {checkedText(price.checkedAt)}</span>
+          </span>
         ) : (
-          !bought && <span className="tag">가격 확인 못 함</span>
+          <span className="tag">가격 확인 못 함</span>
         )}
       </div>
       {!editing && (
