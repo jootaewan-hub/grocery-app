@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkedText, kstDay, searchLabel, SHORTCUTS, splitLines, type PriceLine } from '../src/lib/products'
+import { checkedText, farmLine, kstDay, priceRowText, safetySummary, searchLabel, SHORTCUTS, splitLines, type PriceLine, type SafetyRecord } from '../src/lib/products'
 
 const line = (p: Partial<PriceLine>): PriceLine => ({
   price: 10000, seller: null, source: 'danawa', qty: 1, delivery: null, checkedAt: '2026-10-20T01:00:00Z',
@@ -71,5 +71,30 @@ describe('목록 줄의 후보 상태 문구', () => {
     expect(searchLabel({ status: 'none', candidateCount: 0, updatedAt: 't' })).toBe('후보를 찾지 못했어요')
     expect(searchLabel({ status: 'error', candidateCount: 0, updatedAt: 't' })).toBe('후보를 찾지 못했어요(다시 시도)')
     expect(searchLabel(null)).toBe('상품 고르기 전')
+  })
+})
+
+describe('품목 상세 문구', () => {
+  it('가격 줄: 배송비가 있으면 금액, 0이면 무료배송, 모르면 확인 못 함', () => {
+    expect(priceRowText(line({ price: 10380, delivery: 3000 }))).toBe('10,380원, 배송비 3,000원')
+    expect(priceRowText(line({ price: 10380, delivery: 0 }))).toBe('10,380원, 무료배송')
+    expect(priceRowText(line({ price: 10380, delivery: null }))).toBe('10,380원, 배송비 확인 못 함')
+  })
+
+  const rec = (p: Partial<SafetyRecord>): SafetyRecord => ({
+    source: 'I0490', sourceId: '1', productName: 'x', maker: null, reason: null, grade: null, packUnit: null, registeredOn: null,
+    via: 'item_name', farm: false, ...p,
+  })
+
+  it('식약처 기록 요약: 농가 기록을 빼고 출처별 건수, 없으면 찾은 기록 없음, 실패면 확인 못 함', () => {
+    expect(safetySummary([rec({}), rec({ sourceId: '2', source: 'I2620' }), rec({ sourceId: '3', source: 'I2620' })], false)).toBe('회수·판매중지 1건, 검사부적합 2건')
+    expect(safetySummary([rec({ source: 'I2620', farm: true })], false)).toBe('찾은 기록 없음')
+    expect(safetySummary([], false)).toBe('찾은 기록 없음')
+    expect(safetySummary([], true)).toBe('확인 못 함')
+  })
+
+  it('농가 단위 기록 줄: 있으면 건수, 없으면 null', () => {
+    expect(farmLine([rec({ farm: true }), rec({ sourceId: '2', farm: true }), rec({ sourceId: '3' })])).toBe('같은 품목 농산물 부적합 2건(농가 단위)')
+    expect(farmLine([rec({})])).toBeNull()
   })
 })

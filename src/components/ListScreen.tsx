@@ -11,6 +11,7 @@ import { EMPTY_EXTRAS, type ItemExtras } from '../lib/products'
 import AddSheet from './AddSheet'
 import AlertSheet from './AlertSheet'
 import CandidateSheet from './CandidateSheet'
+import ItemDetail from './ItemDetail'
 import ListRow from './ListRow'
 
 const UNDO_MS = 5000
@@ -47,6 +48,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   const extrasSeq = useRef(0)
   const requested = useRef(new Set<string>()) // 이 화면에서 후보 찾기를 이미 부른 품목
   const [pickItem, setPickItem] = useState<Item | null>(null)
+  const [detailItem, setDetailItem] = useState<Item | null>(null)
 
   // 후보 상태·오늘 최저가·고른 상품명. 실패해도 목록은 그대로(가격은 "확인 못 함"으로 남는다).
   const refetchExtras = useCallback(() => {
@@ -436,6 +438,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
                         price={extras.prices.get(item.id) ?? null}
                         productName={extras.productNames.get(item.id) ?? null}
                         onPick={() => setPickItem(item)}
+                        onOpen={() => setDetailItem(item)}
                       />
                     ))}
                   </ul>
@@ -465,6 +468,20 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
       </div>
 
       {sheetOpen && <AddSheet onAdd={add} onClose={closeSheet} />}
+      {detailItem && (
+        <ItemDetail
+          item={detailItem}
+          store={store}
+          onChangeProduct={() => {
+            setPickItem(detailItem)
+            setDetailItem(null)
+          }}
+          onClose={() => {
+            setDetailItem(null)
+            refetchExtras()
+          }}
+        />
+      )}
       {pickItem && (
         <CandidateSheet
           item={pickItem}

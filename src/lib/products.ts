@@ -1,6 +1,7 @@
 // 가격 확인(④-1): 후보·가격 줄·안전 기록 타입과 화면 규칙.
 // "가장 싼 값"은 오늘(한국 시간) 확인했고 고른 수량과 같은 줄에서만 고른다(설계 4-3, 화면 설계 4절).
-import type { AlertsResult, FoodAlert } from './alerts'
+import type { AlertsResult, FoodAlert, FoodSource } from './alerts'
+import { won } from './format'
 
 export type ItemSearch = { status: 'searching' | 'done' | 'none' | 'error'; candidateCount: number; updatedAt: string }
 
@@ -77,3 +78,29 @@ export const SHORTCUTS: readonly { name: string; url: (q: string) => string }[] 
   { name: 'G마켓', url: (q) => `https://www.gmarket.co.kr/n/search?keyword=${encodeURIComponent(q)}` },
   { name: '컬리', url: (q) => `https://www.kurly.com/search?sword=${encodeURIComponent(q)}` },
 ]
+
+/** 가격 줄 오른쪽 글: 가격과 배송비 */
+export function priceRowText(l: PriceLine): string {
+  const ship = l.delivery === null ? '배송비 확인 못 함' : l.delivery === 0 ? '무료배송' : `배송비 ${won(l.delivery)}`
+  return `${won(l.price)}, ${ship}`
+}
+
+const SHORT_SOURCE: Record<FoodSource, string> = { I0490: '회수·판매중지', I2620: '검사부적합', I2715: '해외직구 위해식품' }
+
+/** 요약 칸의 식약처 기록: 농가 단위 기록은 빼고 출처별 건수. 기록이 없을 때 "안전함"이라고 쓰지 않는다. */
+export function safetySummary(records: SafetyRecord[], failed: boolean): string {
+  if (failed) return '확인 못 함'
+  const counts = new Map<FoodSource, number>()
+  for (const r of records) if (!r.farm) counts.set(r.source, (counts.get(r.source) ?? 0) + 1)
+  if (counts.size === 0) return '찾은 기록 없음'
+  return (['I0490', 'I2620', 'I2715'] as FoodSource[])
+    .filter((s) => counts.has(s))
+    .map((s) => `${SHORT_SOURCE[s]} ${counts.get(s)}건`)
+    .join(', ')
+}
+
+/** 농가 단위 농산물 부적합(목록에서는 숨김) 줄 */
+export function farmLine(records: SafetyRecord[]): string | null {
+  const n = records.filter((r) => r.farm).length
+  return n === 0 ? null : `같은 품목 농산물 부적합 ${n}건(농가 단위)`
+}

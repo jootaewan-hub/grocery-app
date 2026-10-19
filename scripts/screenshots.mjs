@@ -33,6 +33,10 @@ const shots = [
   // 상품 고르기 시트(데모 후보, 가격은 예시)
   ...BOTH.map((c) => ({ name: `candidate-sheet-390-${c}`, path: '/?demo=1', w: 390, c, pick: true })),
   { name: 'candidate-sheet-1280-light', path: '/?demo=1', w: 1280, c: 'light', pick: true },
+  // 품목 상세(데모 상품 비비고 왕교자, 가격은 예시)
+  ...['price', 'safety', 'rating'].flatMap((t) => BOTH.map((c) => ({ name: `item-detail-${t}-390-${c}`, path: '/?demo=1', w: 390, c, detail: '비비고 왕교자', tab: t }))),
+  { name: 'item-detail-price-1280-light', path: '/?demo=1', w: 1280, c: 'light', detail: '비비고 왕교자', tab: 'price' },
+  { name: 'item-detail-safety-390-light-alert', path: '/?demo=1', w: 390, c: 'light', detail: '○○ 냉동볶음밥', tab: 'safety' },
   ...BOTH.map((c) => ({ name: `list-empty-390-${c}`, path: '/?demo=empty', w: 390, c, wait: '아직 담은 게 없어요' })),
   { name: 'list-error-390-light', path: '/?demo=error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
   ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `login-${w}-${c}`, path: '/?demo=login&error=1', w, c }))),
@@ -80,6 +84,12 @@ try {
       await page.getByRole('button', { name: '상품 고르기' }).first().click()
       await page.getByRole('dialog').waitFor()
       await page.locator('.cand-variant').first().waitFor()
+    }
+    if (s.detail) {
+      await page.locator('.row-name', { hasText: s.detail }).first().click()
+      await page.getByRole('dialog').waitFor()
+      const label = { price: '가격', safety: '안전', rating: '평가' }[s.tab]
+      await page.getByRole('tab', { name: label }).click()
     }
     if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
     if (s.remove) {

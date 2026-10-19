@@ -27,6 +27,8 @@ type Props = {
   productName?: string | null
   /** 상품 고르기 시트 열기 */
   onPick?: () => void
+  /** 품목 상세 열기(줄 누르기) */
+  onOpen?: () => void
 }
 
 function whoClass(m: Member): string {
@@ -37,7 +39,7 @@ function whoClass(m: Member): string {
 
 export default function ListRow({
   item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove, editing = false,
-  search = null, price = null, productName = null, onPick,
+  search = null, price = null, productName = null, onPick, onOpen,
 }: Props) {
   const bought = item.boughtAt !== null
   const adder = members.find((m) => m.userId === item.addedBy)
@@ -105,8 +107,9 @@ export default function ListRow({
       suppressClick.current = false
       return
     }
-    // 행 누르기의 품목 상세는 다음 계획에서 붙인다. 지금은 열린 "빼기"만 닫는다.
+    // 열린 "빼기"가 있으면 닫기만 하고, 편집 중에는 상세를 열지 않는다
     if (open) onOpenChange(false)
+    else if (!editing) onOpen?.()
   }
 
   const offset = editing ? 0 : dx ?? (open ? -ACTION_W : 0)
