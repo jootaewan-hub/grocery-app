@@ -22,7 +22,7 @@ type Props = {
   onSignOut?: () => void
 }
 
-type Notice = { kind: 'removed'; id: string; name: string } | { kind: 'error'; text: string }
+type Notice = { kind: 'removed'; ids: string[]; what: string } | { kind: 'error'; text: string }
 
 export default function ListScreen({ store, me, onSignOut }: Props) {
   const [items, setItems] = useState<Item[] | null>(null)
@@ -33,6 +33,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set())
   const [notice, setNotice] = useState<Notice | null>(null)
+  const [editing, setEditing] = useState(false)
   const pending = useRef(new Map<string, number>()) // 빼기 대기 중인 id → 타이머
   const noticeTimer = useRef<number | undefined>(undefined)
   const opener = useRef<HTMLElement | null>(null)
@@ -119,17 +120,24 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
     [store, refetch, showNotice],
   )
 
-  const remove = (item: Item) => {
+  // 한 품목이나 한 묶음(분류 통째로)을 뺀다. 되돌리기 하나로 모두 되살린다.
+  const removeMany = (list: Item[], what: string) => {
+    if (list.length === 0) return
     setOpenRow(null)
-    setHidden((h) => new Set(h).add(item.id))
-    const t = window.setTimeout(() => commitRemove(item.id), UNDO_MS)
-    pending.current.set(item.id, t)
-    showNotice({ kind: 'removed', id: item.id, name: item.name })
+    setHidden((h) => {
+      const next = new Set(h)
+      for (const i of list) next.add(i.id)
+      return next
+    })
+    for (const i of list) pending.current.set(i.id, window.setTimeout(() => commitRemove(i.id), UNDO_MS))
+    showNotice({ kind: 'removed', ids: list.map((i) => i.id), what })
   }
+  const remove = (item: Item) => removeMany([item], `${item.name}${josa(item.name, '을', '를')}`)
 
-  const undo = (id: string) => {
-    const t = pending.current.get(id)
-    if (t !== undefined) {
+  const undo = (ids: string[]) => {
+    for (const id of ids) {
+      const t = pending.current.get(id)
+      if (t === undefined) continue
       window.clearTimeout(t)
       pending.current.delete(id)
       setHidden((h) => without(h, id))
@@ -239,6 +247,11 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
     [view, visible, alerts],
   )
   const status = alerts ? listStatus(alerts.syncedAt) : null
+
+  // 다 빼서 목록이 비면 편집을 끝낸다
+  useEffect(() => {
+    if (visible.length === 0) setEditing(false)
+  }, [visible.length])
   const sum = summarize(visible, NO_PRICES)
   const ready = loadState === 'ready' && items !== null
 
@@ -248,6 +261,11 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
         <h1>이번 장보기</h1>
         <div className="list-head-actions">
           <button type="button" className="btn-primary only-wide" onClick={openSheet}>담기</button>
+          {ready && visible.length > 0 && (
+            <button type="button" className="btn-text" aria-pressed={editing} onClick={() => setEditing((e) => !e)}>
+              {editing ? '완료' : '편집'}
+            </button>
+          )}
           {signOut && <button type="button" className="btn-text" onClick={() => void signOut()}>로그아웃</button>}
         </div>
       </header>
@@ -322,9 +340,21 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
             ) : (
               sections.map((s) => (
                 <section key={s.key} className="group" aria-labelledby={`sec-${s.key}`}>
-                  <h2 className="group-title" id={`sec-${s.key}`}>
-                    {s.title} <span className="group-count num">{s.items.length}개</span>
-                  </h2>
+                  <div className="group-head">
+                    <h2 className="group-title" id={`sec-${s.key}`}>
+                      {s.title} <span className="group-count num">{s.items.length}개</span>
+                    </h2>
+                    {editing && s.key !== 'alert' && ( // '먼저 볼 것'은 분류가 아니라 경고 모음이라 통째로 빼지 않는다
+                      <button
+                        type="button"
+                        className="group-remove"
+                        aria-label={`${s.title} ${s.items.length}개 모두 빼기`}
+                        onClick={() => removeMany(s.items, `${s.title} ${s.items.length}개를`)}
+                      >
+                        모두 빼기
+                      </button>
+                    )}
+                  </div>
                   <ul className="group-rows">
                     {s.items.map((item) => (
                       <ListRow
@@ -341,6 +371,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
                         onOpenChange={(o) => setOpenRow(o ? item.id : (cur) => (cur === item.id ? null : cur))}
                         onToggle={() => toggle(item)}
                         onRemove={() => remove(item)}
+                        editing={editing}
                       />
                     ))}
                   </ul>
@@ -357,9 +388,9 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
 
       <div className="notice-slot" aria-live="polite">
         {notice?.kind === 'removed' && (
-          <div className="notice" key={notice.id}>
-            <p>{notice.name}{josa(notice.name, '을', '를')} 뺐어요.</p>
-            <button type="button" className="notice-action" onClick={() => undo(notice.id)}>되돌리기</button>
+          <div className="notice" key={notice.ids.join()}>
+            <p>{notice.what} 뺐어요.</p>
+            <button type="button" className="notice-action" onClick={() => undo(notice.ids)}>되돌리기</button>
           </div>
         )}
         {notice?.kind === 'error' && (

@@ -17,6 +17,8 @@ type Props = {
   onOpenChange: (open: boolean) => void
   onToggle: () => void
   onRemove: () => void
+  /** 편집 중이면 밀지 않아도 줄마다 "빼기"가 보인다 */
+  editing?: boolean
 }
 
 function whoClass(m: Member): string {
@@ -25,7 +27,7 @@ function whoClass(m: Member): string {
   return 'who-dot who-none'
 }
 
-export default function ListRow({ item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove }: Props) {
+export default function ListRow({ item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove, editing = false }: Props) {
   const bought = item.boughtAt !== null
   const adder = members.find((m) => m.userId === item.addedBy)
   const buyer = members.find((m) => m.userId === item.boughtBy)
@@ -45,7 +47,7 @@ export default function ListRow({ item, members, showNoCompare, alertLevel, onAl
   }
 
   function down(e: PointerEvent<HTMLDivElement>) {
-    if (e.button !== 0) return
+    if (e.button !== 0 || editing) return
     drag.current = { x: e.clientX, y: e.clientY, id: e.pointerId, mode: 'idle', base: open ? -ACTION_W : 0 }
     window.clearTimeout(longTimer.current)
     longTimer.current = window.setTimeout(() => {
@@ -96,7 +98,7 @@ export default function ListRow({ item, members, showNoCompare, alertLevel, onAl
     if (open) onOpenChange(false)
   }
 
-  const offset = dx ?? (open ? -ACTION_W : 0)
+  const offset = editing ? 0 : dx ?? (open ? -ACTION_W : 0)
   const label = [item.name, item.spec].filter(Boolean).join(' ')
 
   const second: ReactNode[] = []
@@ -117,7 +119,10 @@ export default function ListRow({ item, members, showNoCompare, alertLevel, onAl
   }
 
   return (
-    <li className={`row${bought ? ' is-bought' : ''}${open ? ' is-open' : ''}${dx !== null ? ' is-swiping' : ''}`} data-row-id={item.id}>
+    <li
+      className={`row${bought ? ' is-bought' : ''}${open && !editing ? ' is-open' : ''}${dx !== null ? ' is-swiping' : ''}${editing ? ' is-editing' : ''}`}
+      data-row-id={item.id}
+    >
       <div
         className={`row-body${dx !== null ? ' is-dragging' : ''}`}
         style={{ transform: offset ? `translateX(${offset}px)` : undefined }}
@@ -178,20 +183,37 @@ export default function ListRow({ item, members, showNoCompare, alertLevel, onAl
             </p>
           )}
         </div>
-        {!bought && <span className="tag">가격 확인 못 함</span>}
+        {editing ? (
+          <button
+            type="button"
+            className="row-remove-inline"
+            aria-label={`${label} 빼기`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onRemove()
+            }}
+          >
+            빼기
+          </button>
+        ) : (
+          !bought && <span className="tag">가격 확인 못 함</span>
+        )}
       </div>
-      <button
-        type="button"
-        className="row-remove"
-        aria-label={`${label} 빼기`}
-        onFocus={() => {
-          if (!open) onOpenChange(true) // 키보드로 오면 "빼기"를 보여 준다
-        }}
-        onBlur={() => onOpenChange(false)}
-        onClick={onRemove}
-      >
-        빼기
-      </button>
+      {!editing && (
+        <button
+          type="button"
+          className="row-remove"
+          aria-label={`${label} 빼기`}
+          onFocus={() => {
+            if (!open) onOpenChange(true) // 키보드로 오면 "빼기"를 보여 준다
+          }}
+          onBlur={() => onOpenChange(false)}
+          onClick={onRemove}
+        >
+          빼기
+        </button>
+      )}
     </li>
   )
 }

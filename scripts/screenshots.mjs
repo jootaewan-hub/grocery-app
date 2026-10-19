@@ -24,6 +24,9 @@ const shots = [
   // "빼기"가 열린 줄(키보드로 오면 열린다)과, 뺀 뒤의 되돌리기 알림
   { name: 'row-remove-open-390-light', path: '/?demo=1', w: 390, c: 'light', openRemove: '삼겹살 600g' },
   ...BOTH.map((c) => ({ name: `removed-notice-390-${c}`, path: '/?demo=1', w: 390, c, remove: '삼겹살 600g' })),
+  // 편집: 줄마다 "빼기"와 묶음 제목 옆 "모두 빼기", 묶음을 통째로 뺀 뒤의 되돌리기 알림
+  ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `list-edit-${w}-${c}`, path: '/?demo=1', w, c, edit: true, full: true }))),
+  ...BOTH.map((c) => ({ name: `group-removed-390-${c}`, path: '/?demo=1', w: 390, c, edit: true, groupRemove: true })),
   // 식약처 비슷한 기록 배지를 눌러 연 경고 시트(데모의 가상 기록)
   ...BOTH.map((c) => ({ name: `alert-sheet-390-${c}`, path: '/?demo=1', w: 390, c, alert: '비슷한 제품 기록' })),
   { name: 'alert-sheet-1280-light', path: '/?demo=1', w: 1280, c: 'light', alert: '비슷한 제품 기록' },
@@ -64,6 +67,11 @@ try {
     if (s.alert) {
       await page.getByRole('button', { name: s.alert }).first().click()
       await page.getByRole('dialog').waitFor()
+    }
+    if (s.edit) await page.getByRole('button', { name: '편집' }).click()
+    if (s.groupRemove) {
+      await page.locator('.group-remove').first().click()
+      await page.getByRole('button', { name: '되돌리기' }).waitFor()
     }
     if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
     if (s.remove) {

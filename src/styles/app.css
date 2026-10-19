@@ -169,6 +169,19 @@ button { touch-action: manipulation; -webkit-user-select: none; user-select: non
 /* 닫혀 있을 때는 숨겨 둔다(둥근 모서리 가장자리로 흙빛이 비치지 않게). 키보드 포커스가 오면 보인다. */
 .row:not(.is-open):not(.is-swiping) .row-remove { opacity: 0; }
 
+/* 편집: 밀지 않아도 줄마다 "빼기", 묶음 제목 옆에 "모두 빼기"(마우스로도 바로 뺄 수 있게) */
+.group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 8px; }
+.group-head .group-title { margin: 0; }
+.group-remove {
+  min-height: 44px; padding: 0 8px; margin-right: -8px; border: 0; border-radius: var(--r-btn); cursor: pointer;
+  background: transparent; color: var(--clay); font-size: 14px; font-weight: 700;
+}
+.row-remove-inline {
+  flex: none; min-height: 44px; padding: 0 14px; border: 0; border-radius: var(--r-btn); cursor: pointer;
+  background: var(--clay); color: var(--on-ink); font-size: 14px; font-weight: 700;
+}
+.group-remove:focus-visible, .row-remove-inline:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
 .state { margin-top: 32px; display: flex; flex-direction: column; align-items: flex-start; gap: 12px; color: var(--ink-muted); }
 .state.empty { display: block; }
 .stale { margin-top: 12px; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 14px; color: var(--ink-muted); }
