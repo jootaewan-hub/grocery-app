@@ -10,6 +10,7 @@ const GROCERY = read('../supabase/migrations/20261017000000_grocery_items.sql')
 const ALERTS = read('../supabase/migrations/20261019000000_grocery_food_alerts.sql')
 const LOCK = read('../supabase/migrations/20261019010000_grocery_sync_lock.sql')
 const FARM = read('../supabase/migrations/20261019020000_grocery_alerts_skip_farm_lots.sql')
+const FARM2 = read('../supabase/migrations/20261019030000_grocery_alerts_unknown_producer.sql')
 
 const A = '00000000-0000-4000-8000-00000000000a'
 const C = '00000000-0000-4000-8000-00000000000c'
@@ -79,6 +80,7 @@ beforeAll(async () => {
   await db.exec(ALERTS)
   await db.exec(LOCK)
   await db.exec(FARM)
+  await db.exec(FARM2)
 })
 
 describe('동기화 잠금', () => {
@@ -172,6 +174,9 @@ describe('식약처 대조', () => {
     await alert({ source: 'I2620', id: '1', product: '고수', maker: '이*옥' })
     await alert({ source: 'I2620', id: '2', product: '고수', maker: '생산자 특정불가' })
     await alert({ source: 'I2620', id: '3', product: '고수(잎)', maker: '생산자 미상' })
+    await alert({ source: 'I2620', id: '4', product: '고수', maker: '파악불가' })
+    await alert({ source: 'I2620', id: '5', product: '고수', maker: '확인불가' })
+    await alert({ source: 'I2620', id: '6', product: '고수', maker: '생산자 정보 파악 불가' })
     await item(hhA, A, '고수')
     expect(await alertsFor(A)).toHaveLength(0)
   })
