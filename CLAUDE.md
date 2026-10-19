@@ -1,5 +1,9 @@
 # 우리집 장보기
 
+> **2026-10-19부터 장보기는 가계부 앱(jootaewan-hub/account-book)의 '장보기' 탭이다(D-010).** 코드·마이그레이션·Edge Function·식약처 예약 실행·문서는
+> 가계부 저장소로 옮겼고(`src/grocery/`, `docs/grocery/`), 이 저장소는 보관(읽기 전용)한다. 이 주소(https://jootaewan-hub.github.io/grocery-app/)는
+> 옮겨졌다는 안내만 보여 주고 https://jootaewan-hub.github.io/account-book/?tab=grocery 로 넘긴다. 새 작업은 가계부 저장소에서 한다.
+
 부부 두 사람만 쓰는 장보기 앱이다. 살 것을 글이나 사진으로 담으면, 품목마다 쇼핑몰별 가격, 식약처 회수·판매중지·행정처분 기록과 제품 변경 소식, 고기·채소·과일·수산물의 공공 시세와 그 변동, 더 나은 대안 상품을 한 화면에서 보여 준다. 장을 보며 체크한 품목과 낸 금액은 지출 기록으로 쌓인다.
 
 아직 코드는 없다. 2026-10-16에 claude.ai 아티팩트로 만든 v0 시안을 폐기하고 정식 앱으로 새로 시작한다. v0에서 배운 점은 `docs/prototype/README.md`에 있다.

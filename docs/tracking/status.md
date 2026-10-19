@@ -1,5 +1,10 @@
 # 현재 상태
 
+> **2026-10-19부터 장보기는 가계부 앱(jootaewan-hub/account-book)의 '장보기' 탭이다(D-010).** 코드·마이그레이션·Edge Function·식약처 예약 실행·문서는
+> 가계부 저장소로 옮겼고(`src/grocery/`, `docs/grocery/`), 이 저장소는 보관(읽기 전용)한다. 이 주소(https://jootaewan-hub.github.io/grocery-app/)는
+> 옮겨졌다는 안내만 보여 주고 https://jootaewan-hub.github.io/account-book/?tab=grocery 로 넘긴다. 이어지는 상태 기록은 가계부 저장소의 `docs/grocery/tracking/status.md`에 있다.
+
+
 ## 된 것 (2026-10-16)
 
 - GitHub 저장소 생성(지금은 비공개, D-006에 따라 배포 때 공개 전환), 로컬 폴더 `D:\openai\grocery-app`.

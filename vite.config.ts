@@ -22,6 +22,8 @@ export default defineConfig({
     },
     VitePWA({
       registerType: 'autoUpdate',
+      // 장보기가 가계부 앱으로 옮겨져(D-010) 이 사이트는 안내만 한다. 설치된 앱의 서비스 워커가 스스로 등록을 풀고 캐시를 지우게 한다
+      selfDestroying: true,
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
       manifest: {
         name: '우리집 장보기',
