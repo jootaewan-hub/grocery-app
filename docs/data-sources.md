@@ -59,7 +59,7 @@
   - 다나와 검색 `search.danawa.com/?query=…`(옛 `dsearch.php`는 이 주소로 307): robots 허용, **Crawl-delay 10**(10초에 한 번). 응답 HTML 한 장에 상품 40개가 서버에서 그려져 온다(`li[data-product-seq]` = pcode). 줄마다 상품명(용량 포함, 예: "CJ제일제당 비비고 왕교자 1.05kg"), 수량별 최저가(1개·2개 등), 100g당 가격이 있다. JSON-LD `ItemList`에는 앞 6개만(이름·주소·이미지, 가격 없음). 클래스 이름이 Tailwind라 구조가 바뀌면 깨지기 쉽다.
   - 다나와 상품 페이지 `prod.danawa.com/info/?pcode=`: JSON-LD `Product`에 `AggregateOffer`(lowPrice, offerCount)와 `AggregateRating`(예: 4.8, 후기 9,099). 본문 "쇼핑몰별 최저가"에 약 10줄: 가격·배송비(`data-base-price`, `data-delivery-price`)와 몰 로고 `alt`(롯데ON, G마켓, 옥션, 11번가, SSG.COM, 신세계몰, 이마트몰 등). 바코드(gtin)는 없다.
   - 주의: 상품 페이지는 기본 수량이 묶음(예: "1.05kg (3개)" lowPrice 27,650)일 수 있고, 검색 결과의 1개 가격(10,380)과 다르다. 수량을 맞춰 비교해야 한다.
-  - 확인 필요: Supabase Edge Functions(해외 IP일 수 있음)에서 같은 요청이 막히지 않는지.
+  - **Supabase Edge Functions에서도 막히지 않는다**(2026-10-19 임시 함수 `danawa-probe`로 한 번씩 호출): 실행 리전 `ap-northeast-2`(서울), 검색 200·후보 40개·0.5초, 상품 페이지 200·AggregateOffer 있음, 차단 문구 없음. 시험 뒤 그 함수는 외부 호출 없이 410만 돌려주게 바꿨다(대시보드에서 지워도 된다).
 - 쓰지 않는 곳: 폴센트·11번가(robots 전체 금지, 11번가 Open API 문서는 있으나 현행 여부 미확인), G마켓·옥션(약관 제36조 자동 접속 프로그램 금지, 403), 카카오 쇼핑하우(robots 금지), 위메프(2025-11-10 파산), 티몬(영업 안 함).
 - 마트 전단: 이마트 전단은 robots 금지, 홈플러스 종이전단은 가격이 한글 수사("칠천팔백구십원")라 오독 위험, 롯데마트는 브라우저에서 그리는 구조, 킴스클럽은 공식 웹 전단 없음 → 보류.
 - 오아시스마켓: robots.txt 없음, JSON-LD 없음(가격은 HTML 클래스에만).
