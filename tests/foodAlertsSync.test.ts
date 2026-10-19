@@ -3,6 +3,11 @@ import type { FetchLike, FoodAlertRow } from '../supabase/functions/_shared/food
 import { handle, type SyncDeps } from '../supabase/functions/food-alerts-sync/handle'
 
 type Run = Parameters<SyncDeps['recordRun']>[0]
+type RecentRun = Awaited<ReturnType<SyncDeps['recentRuns']>>[number]
+
+const NOW = new Date('2026-10-19T22:00:00Z')
+const ago = (ms: number) => new Date(NOW.getTime() - ms).toISOString()
+const H = 3600_000
 
 /** 서비스별 건수와 오류 코드를 정해 주는 가짜 식약처 API. */
 function api(totals: Record<string, number>, errors: Record<string, string> = {}) {
@@ -22,53 +27,104 @@ function api(totals: Record<string, number>, errors: Record<string, string> = {}
   return { calls, impl }
 }
 
-function deps(over: Partial<SyncDeps> = {}) {
+function deps(over: Partial<SyncDeps> = {}, recent: RecentRun[] = []) {
   const upserts: FoodAlertRow[][] = []
   const runs: Run[] = []
+  const since: string[] = []
+  let attempts = 0
   const a = api({ I0490: 3, I2620: 2, I2715: 1200 })
   const d: SyncDeps = {
-    syncSecret: 'S3CRET',
     apiKey: 'SECRETKEY',
     fetchImpl: a.impl,
+    now: () => NOW,
+    recentRuns: async (s) => {
+      since.push(s)
+      return recent
+    },
+    markAttempt: async () => {
+      attempts++
+    },
     upsert: async (rows) => { upserts.push(rows) },
     recordRun: async (run) => { runs.push(run) },
     ...over,
   }
-  return { d, upserts, runs, calls: a.calls }
+  return { d, upserts, runs, calls: a.calls, since, attempts: () => attempts }
 }
 
-const post = (secret?: string) =>
-  new Request('https://x/functions/v1/food-alerts-sync', { method: 'POST', headers: secret ? { 'x-sync-secret': secret } : {} })
+const post = () => new Request('https://x/functions/v1/food-alerts-sync', { method: 'POST' })
+const okAll = (t: string): RecentRun[] => ['I0490', 'I2620', 'I2715'].map((source) => ({ source, ok: true, ran_at: t }))
 
-describe('food-alerts-sync', () => {
-  it('비밀값이 없거나 틀리면 401이고 외부 호출이 없다', async () => {
-    for (const req of [post(), post('wrong'), post('S3CRE')]) {
-      const { d, calls, upserts } = deps()
-      expect((await handle(req, d)).status).toBe(401)
-      expect(calls).toHaveLength(0)
-      expect(upserts).toHaveLength(0)
-    }
-    const { d, calls } = deps({ syncSecret: undefined })
-    expect((await handle(post(''), d)).status).toBe(401)
+describe('food-alerts-sync: 하루 한 번만', () => {
+  it('세 목록을 모두 20시간 안에 받아 두었으면 받지 않고 200 skipped', async () => {
+    const { d, calls, upserts, attempts } = deps({}, okAll(ago(19 * H)))
+    const res = await handle(post(), d)
+    expect(res.status).toBe(200)
+    expect(await res.json()).toEqual({ skipped: 'fresh', lastSyncAt: ago(19 * H) })
     expect(calls).toHaveLength(0)
+    expect(upserts).toHaveLength(0)
+    expect(attempts()).toBe(0)
   })
 
+  it('최근 기록은 20시간 전부터 묻는다', async () => {
+    const { d, since } = deps({}, okAll(ago(19 * H)))
+    await handle(post(), d)
+    expect(since).toEqual([ago(20 * H)])
+  })
+
+  it('한 목록이라도 20시간 안에 성공하지 못했으면 다시 받는다', async () => {
+    const recent = okAll(ago(19 * H)).filter((r) => r.source !== 'I2620')
+    const { d, calls, attempts } = deps({}, recent)
+    const res = await handle(post(), d)
+    expect(res.status).toBe(200)
+    expect(calls.length).toBeGreaterThan(0)
+    expect(attempts()).toBe(1)
+  })
+
+  it('30분 안에 시도가 있었으면 429이고 받지 않는다(실패가 이어져도 마구 부르지 않게)', async () => {
+    const { d, calls, attempts } = deps({}, [{ source: 'attempt', ok: false, ran_at: ago(10 * 60_000) }])
+    const res = await handle(post(), d)
+    expect(res.status).toBe(429)
+    expect(await res.json()).toEqual({ skipped: 'cooldown' })
+    expect(calls).toHaveLength(0)
+    expect(attempts()).toBe(0)
+  })
+
+  it('30분이 지난 실패 뒤에는 다시 받는다', async () => {
+    const { d, calls } = deps({}, [{ source: 'I0490', ok: false, ran_at: ago(31 * 60_000) }])
+    expect((await handle(post(), d)).status).toBe(200)
+    expect(calls.length).toBeGreaterThan(0)
+  })
+
+  it('받기 전에 시도를 먼저 기록한다', async () => {
+    const order: string[] = []
+    const a = api({ I0490: 1 })
+    const { d } = deps({
+      markAttempt: async () => { order.push('attempt') },
+      fetchImpl: async (u) => { order.push('fetch'); return a.impl(u) },
+    })
+    await handle(post(), d)
+    expect(order[0]).toBe('attempt')
+  })
+})
+
+describe('food-alerts-sync: 받기와 기록', () => {
   it('GET은 405', async () => {
     const { d } = deps()
     expect((await handle(new Request('https://x/', { method: 'GET' }), d)).status).toBe(405)
   })
 
-  it('키가 없으면 500 missing_api_key', async () => {
-    const { d, calls } = deps({ apiKey: undefined })
-    const res = await handle(post('S3CRET'), d)
+  it('키가 없으면 500 missing_api_key이고 시도도 기록하지 않는다', async () => {
+    const { d, calls, attempts } = deps({ apiKey: undefined })
+    const res = await handle(post(), d)
     expect(res.status).toBe(500)
     expect(await res.json()).toEqual({ error: 'missing_api_key' })
     expect(calls).toHaveLength(0)
+    expect(attempts()).toBe(0)
   })
 
   it('세 서비스를 받아 500건씩 upsert하고 서비스마다 기록한다', async () => {
     const { d, upserts, runs } = deps()
-    const res = await handle(post('S3CRET'), d)
+    const res = await handle(post(), d)
     expect(res.status).toBe(200)
     expect(upserts.map((u) => u.length)).toEqual([3, 2, 500, 500, 200])
     expect(runs).toEqual([
@@ -88,7 +144,7 @@ describe('food-alerts-sync', () => {
   it('한 서비스가 실패해도 나머지는 계속하고 207', async () => {
     const a = api({ I0490: 3, I2620: 2, I2715: 1 }, { I2620: 'ERROR-300' })
     const { d, runs, upserts } = deps({ fetchImpl: a.impl })
-    const res = await handle(post('S3CRET'), d)
+    const res = await handle(post(), d)
     expect(res.status).toBe(207)
     expect(runs.map((r) => [r.source, r.ok])).toEqual([['I0490', true], ['I2620', false], ['I2715', true]])
     expect(runs[1]).toMatchObject({ rows: 0, total: null, error: 'ERROR-300 오류' })
@@ -98,7 +154,7 @@ describe('food-alerts-sync', () => {
   it('저장이 실패해도 그 서비스만 실패로 기록하고, 기록에는 정해진 분류만 남긴다', async () => {
     let n = 0
     const { d, runs } = deps({ upsert: async () => { if (n++ === 0) throw new Error('db down: relation detail') } })
-    const res = await handle(post('S3CRET'), d)
+    const res = await handle(post(), d)
     expect(res.status).toBe(207)
     expect(runs[0]).toMatchObject({ source: 'I0490', ok: false, error: 'save_failed' })
     expect(runs.slice(1).every((r) => r.ok)).toBe(true)
@@ -106,7 +162,7 @@ describe('food-alerts-sync', () => {
 
   it('네트워크 오류는 network_error로만 남긴다', async () => {
     const { d, runs } = deps({ fetchImpl: async () => { throw new TypeError('fetch failed https://x/SECRETKEY/I0490') } })
-    await handle(post('S3CRET'), d)
+    await handle(post(), d)
     expect(runs.map((r) => r.error)).toEqual(['network_error', 'network_error', 'network_error'])
   })
 
@@ -115,7 +171,7 @@ describe('food-alerts-sync', () => {
     const msg = `bad ${key} ${encodeURIComponent(key)}\n` + 'x'.repeat(300)
     const impl: FetchLike = async () => ({ ok: true, status: 200, json: async () => ({ I0490: { RESULT: { CODE: 'ERROR-300', MSG: msg } }, I2620: { RESULT: { CODE: 'INFO-200' } }, I2715: { RESULT: { CODE: 'INFO-200' } } }) })
     const { d, runs } = deps({ apiKey: key, fetchImpl: impl })
-    await handle(post('S3CRET'), d)
+    await handle(post(), d)
     const err = runs[0].error!
     expect(err.startsWith('ERROR-300 bad *** ***')).toBe(true)
     expect(err).not.toContain(key)
@@ -124,16 +180,10 @@ describe('food-alerts-sync', () => {
     expect(err.length).toBeLessThanOrEqual(200)
   })
 
-  it('비밀값이 같으면 통과한다(길이·앞부분이 같은 값은 거부)', async () => {
-    expect((await handle(post('S3CRET'), deps().d)).status).toBe(200)
-    expect((await handle(post('S3CRET!'), deps().d)).status).toBe(401)
-    expect((await handle(post('S3CREX'), deps().d)).status).toBe(401)
-  })
-
   it('응답과 기록에 키가 들어가지 않는다', async () => {
     const a = api({ I0490: 1 }, { I2620: 'ERROR-300' })
     const { d, runs } = deps({ fetchImpl: a.impl })
-    const body = await (await handle(post('S3CRET'), d)).text()
+    const body = await (await handle(post(), d)).text()
     expect(body).not.toContain('SECRETKEY')
     expect(JSON.stringify(runs)).not.toContain('SECRETKEY')
   })

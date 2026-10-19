@@ -1,4 +1,7 @@
-// 식약처 목록 동기화. 비밀 헤더를 확인한 뒤 세 서비스를 전부 받아 upsert하고 서비스마다 실행 기록을 남긴다.
+// 식약처 목록 동기화. 세 서비스를 전부 받아 upsert하고 서비스마다 실행 기록을 남긴다.
+// 비밀번호 없이 부를 수 있으므로 함수가 스스로 막는다(사용자 결정 2026-10-19):
+//   세 목록을 모두 20시간 안에 받아 두었으면 받지 않고, 30분 안에 시도가 있었으면 429로 돌려보낸다.
+//   그래서 누가 주소를 알아도 실제로 받는 것은 하루 한 번 남짓이다(자료는 공개 자료, upsert라 지워지는 것 없음).
 // 한 서비스가 실패해도 나머지는 계속한다. 기존 행은 지우지 않는다.
 // sync_runs.error는 로그인한 사용자가 읽을 수 있으므로 정해진 분류만 남긴다:
 //   식약처 오류 코드 + 키를 가린 짧은 문구 / 'network_error' / 'save_failed'.
@@ -6,31 +9,24 @@
 import { fetchService, FOOD_SERVICES, FoodApiError, type FetchLike, type FoodAlertRow, type FoodService } from '../_shared/foodAlerts.ts'
 
 export type SyncDeps = {
-  syncSecret: string | undefined
   apiKey: string | undefined
   fetchImpl: FetchLike
+  now(): Date
+  /** sinceIso 이후의 실행 기록(서비스별 결과와 'attempt' 표시) */
+  recentRuns(sinceIso: string): Promise<{ source: string; ok: boolean; ran_at: string }[]>
+  /** 받기 시작 표시. 30분 대기 판단에 쓴다. */
+  markAttempt(): Promise<void>
   upsert(rows: FoodAlertRow[]): Promise<void>
   recordRun(run: { source: FoodService; ok: boolean; rows: number; total: number | null; error: string | null }): Promise<void>
 }
 
 const CHUNK = 500
 const ERROR_MAX = 200
+export const FRESH_MS = 20 * 3600_000
+export const COOLDOWN_MS = 30 * 60_000
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8' } })
-
-async function sha256(s: string): Promise<Uint8Array> {
-  return new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s)))
-}
-
-/** 두 값을 SHA-256으로 같은 길이(32바이트)로 만든 뒤 모든 바이트를 XOR로 모아 비교한다(길이·일치 위치가 시간에 드러나지 않게). */
-async function sameSecret(given: string | null, expected: string | undefined): Promise<boolean> {
-  if (!expected) return false
-  const [a, b] = await Promise.all([sha256(given ?? ''), sha256(expected)])
-  let diff = 0
-  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i]
-  return diff === 0 && given !== null
-}
 
 function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -47,9 +43,20 @@ function sanitize(text: string, apiKey: string): string {
 
 export async function handle(req: Request, deps: SyncDeps): Promise<Response> {
   if (req.method !== 'POST') return json(405, { error: 'method_not_allowed' })
-  if (!(await sameSecret(req.headers.get('x-sync-secret'), deps.syncSecret))) return json(401, { error: 'unauthorized' })
   if (!deps.apiKey) return json(500, { error: 'missing_api_key' })
   const apiKey = deps.apiKey
+
+  const now = deps.now().getTime()
+  const recent = await deps.recentRuns(new Date(now - FRESH_MS).toISOString())
+  const lastOk = FOOD_SERVICES.map((s) =>
+    recent.filter((r) => r.source === s && r.ok).reduce<string | null>((m, r) => (m && m > r.ran_at ? m : r.ran_at), null),
+  )
+  if (lastOk.every((t) => t !== null)) {
+    const oldest = lastOk.reduce((a, b) => (a! < b! ? a : b))!
+    return json(200, { skipped: 'fresh', lastSyncAt: oldest })
+  }
+  if (recent.some((r) => Date.parse(r.ran_at) >= now - COOLDOWN_MS)) return json(429, { skipped: 'cooldown' })
+  await deps.markAttempt()
 
   const results: { source: FoodService; ok: boolean; rows: number; total: number | null }[] = []
   for (const source of FOOD_SERVICES) {
