@@ -11,6 +11,8 @@ const ALERTS = read('../supabase/migrations/20261019000000_grocery_food_alerts.s
 const LOCK = read('../supabase/migrations/20261019010000_grocery_sync_lock.sql')
 const FARM = read('../supabase/migrations/20261019020000_grocery_alerts_skip_farm_lots.sql')
 const FARM2 = read('../supabase/migrations/20261019030000_grocery_alerts_unknown_producer.sql')
+const PRODUCTS = read('../supabase/migrations/20261020000000_grocery_products.sql')
+const PRICES = read('../supabase/migrations/20261020010000_grocery_prices.sql')
 
 const A = '00000000-0000-4000-8000-00000000000a'
 const C = '00000000-0000-4000-8000-00000000000c'
@@ -81,6 +83,8 @@ beforeAll(async () => {
   await db.exec(LOCK)
   await db.exec(FARM)
   await db.exec(FARM2)
+  await db.exec(PRODUCTS)
+  await db.exec(PRICES) // item_alerts를 _alert_hits 위로 다시 만든다: 아래 시험은 그대로 통과해야 한다
 })
 
 describe('동기화 잠금', () => {
