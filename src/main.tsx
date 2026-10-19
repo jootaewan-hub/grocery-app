@@ -17,7 +17,7 @@ async function devScreen(): Promise<ReactNode | null> {
       import('./components/ListScreen'),
     ])
     const d = demoSeed()
-    const memory = createMemoryStore(mode === '1' ? d.items : [], d.me)
+    const memory = createMemoryStore(mode === '1' ? d.items : [], d.me, undefined, mode === '1' ? d.alerts : undefined)
     const store = mode === 'error' ? { ...memory, list: () => Promise.reject(new Error('데모: 불러오기 실패')) } : memory
     return <ListScreen store={store} me={d.me} />
   }

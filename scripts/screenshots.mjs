@@ -24,6 +24,9 @@ const shots = [
   // "빼기"가 열린 줄(키보드로 오면 열린다)과, 뺀 뒤의 되돌리기 알림
   { name: 'row-remove-open-390-light', path: '/?demo=1', w: 390, c: 'light', openRemove: '삼겹살 600g' },
   ...BOTH.map((c) => ({ name: `removed-notice-390-${c}`, path: '/?demo=1', w: 390, c, remove: '삼겹살 600g' })),
+  // 식약처 비슷한 기록 배지를 눌러 연 경고 시트(데모의 가상 기록)
+  ...BOTH.map((c) => ({ name: `alert-sheet-390-${c}`, path: '/?demo=1', w: 390, c, alert: '비슷한 제품 기록' })),
+  { name: 'alert-sheet-1280-light', path: '/?demo=1', w: 1280, c: 'light', alert: '비슷한 제품 기록' },
   ...BOTH.map((c) => ({ name: `list-empty-390-${c}`, path: '/?demo=empty', w: 390, c, wait: '아직 담은 게 없어요' })),
   { name: 'list-error-390-light', path: '/?demo=error', w: 390, c: 'light', wait: '목록을 불러오지 못했어요.' },
   ...[390, 1280].flatMap((w) => BOTH.map((c) => ({ name: `login-${w}-${c}`, path: '/?demo=login&error=1', w, c }))),
@@ -58,6 +61,10 @@ try {
       await page.getByRole('dialog').waitFor()
       await page.getByLabel('살 것').fill(s.sheet)
     }
+    if (s.alert) {
+      await page.getByRole('button', { name: s.alert }).first().click()
+      await page.getByRole('dialog').waitFor()
+    }
     if (s.openRemove) await page.getByRole('button', { name: `${s.openRemove} 빼기` }).focus()
     if (s.remove) {
       await page.getByRole('button', { name: `${s.remove} 빼기` }).focus()
@@ -74,7 +81,11 @@ try {
         const r = el.getBoundingClientRect()
         const cs = getComputedStyle(el)
         if (r.width === 0 || cs.visibility === 'hidden' || el.closest('.sr-only')) continue
-        if (r.height < 44 || r.width < 44) out.push(`작은 터치 대상 ${Math.round(r.width)}x${Math.round(r.height)} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 20)}"`)
+        // data-touch-extend: 보이는 크기는 작고 ::before로 누르는 영역을 넓힌 버튼. 넓힌 크기로 잰다.
+        const ext = el.hasAttribute('data-touch-extend') ? getComputedStyle(el, '::before') : null
+        const extH = ext ? -parseFloat(ext.top) - parseFloat(ext.bottom) : 0
+        const extW = ext ? -parseFloat(ext.left) - parseFloat(ext.right) : 0
+        if (r.height + extH < 44 || r.width + extW < 44) out.push(`작은 터치 대상 ${Math.round(r.width)}x${Math.round(r.height)} "${(el.textContent || el.getAttribute('aria-label') || '').trim().slice(0, 20)}"`)
       }
       const text = document.body.innerText
       if (/(^|[^\d,])0원/.test(text)) out.push('"0원" 있음')

@@ -1,4 +1,5 @@
 // 데모 데이터: 개발 중 화면 캡처 전용이다. 실제 가격·기록이 아니며 운영 화면에 쓰지 않는다.
+import { groupAlerts, type AlertsResult } from './lib/alerts'
 import type { Membership } from './lib/session'
 import type { Item } from './lib/types'
 
@@ -6,7 +7,7 @@ const H = 'demo'
 const HUSBAND = 'demo-husband'
 const WIFE = 'demo-wife'
 
-export function demoSeed(): { me: Membership; items: Item[] } {
+export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResult } {
   const me: Membership = {
     userId: HUSBAND,
     householdId: H,
@@ -47,6 +48,25 @@ export function demoSeed(): { me: Membership; items: Item[] } {
       by: HUSBAND,
       at: '2026-10-16T09:20:00+09:00',
     }),
+    mk(6, '○○ 냉동볶음밥', null, 1, '냉동', WIFE, '2026-10-16T08:40:00+09:00'),
   ]
-  return { me, items }
+  // 데모용 가상 기록(실제 식약처 기록이 아님)
+  const alerts: AlertsResult = {
+    ...groupAlerts([
+      {
+        item_id: 'demo-item-6',
+        source: 'I0490',
+        source_id: 'demo-1',
+        product_name: '○○ 냉동볶음밥 300g',
+        maker: '○○식품',
+        reason: '이물 혼입',
+        grade: '2등급',
+        pack_unit: '300g',
+        registered_on: '2026-10-14',
+        level: 'similar',
+      },
+    ]),
+    syncedAt: { I0490: '2026-10-15T22:01:00Z', I2620: '2026-10-15T22:01:00Z', I2715: '2026-10-15T22:01:00Z' },
+  }
+  return { me, items, alerts }
 }

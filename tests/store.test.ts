@@ -47,6 +47,20 @@ describe('메모리 저장소', () => {
   })
 })
 
+describe('경고', () => {
+  it('메모리 저장소는 받은 데모 경고를 돌려주고, 없으면 비어 있다', async () => {
+    const d = demoSeed()
+    const s = createMemoryStore(d.items, d.me, undefined, d.alerts)
+    const a = await s.alerts()
+    expect([...a.levels.entries()]).toEqual([['demo-item-6', 'similar']])
+    expect(a.byItem.get('demo-item-6')![0]).toMatchObject({ source: 'I0490', productName: '○○ 냉동볶음밥 300g' })
+    expect(Object.keys(a.syncedAt).sort()).toEqual(['I0490', 'I2620', 'I2715'])
+    const empty = await createMemoryStore([], me).alerts()
+    expect(empty.levels.size).toBe(0)
+    expect(empty.syncedAt).toEqual({})
+  })
+})
+
 describe('demoSeed', () => {
   it('두 사람과 품목이 있고 산 품목은 하나다', () => {
     const d = demoSeed()

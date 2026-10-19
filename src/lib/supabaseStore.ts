@@ -1,4 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
+import { groupAlerts, SOURCES, type AlertsResult, type ItemAlertRow } from './alerts'
 import type { Category } from './categories'
 import type { ListStore } from './store'
 import type { Membership } from './session'
@@ -93,6 +94,21 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       return () => {
         void client.removeChannel(channel)
       }
+    },
+    async alerts(): Promise<AlertsResult> {
+      const db = client.schema('grocery')
+      const [matches, runs] = await Promise.all([
+        db.rpc('item_alerts'),
+        db.from('sync_runs').select('source, ran_at').eq('ok', true).order('ran_at', { ascending: false }).limit(30),
+      ])
+      if (matches.error) throw matches.error
+      if (runs.error) throw runs.error
+      const syncedAt: AlertsResult['syncedAt'] = {}
+      for (const r of (runs.data ?? []) as { source: string; ran_at: string }[]) {
+        const s = SOURCES.find((x) => x === r.source)
+        if (s && !syncedAt[s]) syncedAt[s] = r.ran_at // 최신순이라 처음 본 값이 마지막 성공
+      }
+      return { ...groupAlerts((matches.data ?? []) as ItemAlertRow[]), syncedAt }
     },
   }
 }

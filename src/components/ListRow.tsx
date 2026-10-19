@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
-import type { Item, Member } from '../lib/types'
+import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
+import { BADGE } from '../lib/alerts'
+import type { AlertLevel, Item, Member } from '../lib/types'
 import { josa, won } from '../lib/format'
 
 const ACTION_W = 88 // "빼기" 버튼 폭
@@ -10,6 +11,8 @@ type Props = {
   item: Item
   members: Member[]
   showNoCompare: boolean
+  alertLevel: AlertLevel | null
+  onAlert: (e: MouseEvent<HTMLButtonElement>) => void
   open: boolean
   onOpenChange: (open: boolean) => void
   onToggle: () => void
@@ -22,7 +25,7 @@ function whoClass(m: Member): string {
   return 'who-dot who-none'
 }
 
-export default function ListRow({ item, members, showNoCompare, open, onOpenChange, onToggle, onRemove }: Props) {
+export default function ListRow({ item, members, showNoCompare, alertLevel, onAlert, open, onOpenChange, onToggle, onRemove }: Props) {
   const bought = item.boughtAt !== null
   const adder = members.find((m) => m.userId === item.addedBy)
   const buyer = members.find((m) => m.userId === item.boughtBy)
@@ -150,6 +153,20 @@ export default function ListRow({ item, members, showNoCompare, open, onOpenChan
             {item.spec && <span className="row-spec num"> {item.spec}</span>}
             {item.count > 1 && <span className="row-count num"> ×{item.count}</span>}
           </p>
+          {alertLevel && (
+            <button
+              type="button"
+              className={`alert-badge alert-${alertLevel}`}
+              data-touch-extend
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation()
+                onAlert(e)
+              }}
+            >
+              {BADGE[alertLevel]}
+            </button>
+          )}
           {second.length > 0 && (
             <p className="row-meta">
               {second.map((part, i) => (

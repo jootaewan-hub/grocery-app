@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
+import { EMPTY_ALERTS, type AlertsResult } from '../lib/alerts'
 import { groupByCategory, groupByWhere, summarize } from '../lib/listView'
 import type { ParsedItem } from '../lib/parse'
 import { loadListView, saveListView, type ListViewMode } from '../lib/prefs'
 import type { Membership } from '../lib/session'
 import type { ListStore } from '../lib/store'
-import type { AlertLevel, Item, PriceCompare } from '../lib/types'
+import type { Item, PriceCompare } from '../lib/types'
 import { josa } from '../lib/format'
 import AddSheet from './AddSheet'
+import AlertSheet from './AlertSheet'
 import ListRow from './ListRow'
 
 const UNDO_MS = 5000
 
-// 이 계획에서는 가격·식약처 대조가 없다. 빈 값으로 넘겨 모두 "확인 못 함"이 되게 한다.
-const NO_ALERTS: ReadonlyMap<string, AlertLevel> = new Map()
+// 가격은 아직 없다(계획 ④). 빈 값으로 넘겨 모두 "확인 못 함"이 되게 한다.
 const NO_PRICES: ReadonlyMap<string, PriceCompare> = new Map()
 
 type Props = {
@@ -36,6 +37,25 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   const noticeTimer = useRef<number | undefined>(undefined)
   const opener = useRef<HTMLElement | null>(null)
   const seq = useRef(0)
+  const [alerts, setAlerts] = useState<AlertsResult>(EMPTY_ALERTS)
+  const [alertsFailed, setAlertsFailed] = useState(false)
+  const [alertItem, setAlertItem] = useState<Item | null>(null)
+  const alertSeq = useRef(0)
+
+  // 식약처 대조는 목록과 따로 불러온다. 실패해도 목록은 그대로 보이고 한 줄로 알린다.
+  const refetchAlerts = useCallback(() => {
+    const mine = ++alertSeq.current
+    store.alerts().then(
+      (a) => {
+        if (mine !== alertSeq.current) return
+        setAlerts(a)
+        setAlertsFailed(false)
+      },
+      () => {
+        if (mine === alertSeq.current) setAlertsFailed(true)
+      },
+    )
+  }, [store])
 
   const refetch = useCallback(() => {
     const mine = ++seq.current
@@ -45,6 +65,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
         setItems(list)
         setLoadState('ready')
         setStaleError(false)
+        refetchAlerts() // 품목이 바뀌면 대조도 다시 한다
       },
       () => {
         if (mine !== seq.current) return
@@ -52,7 +73,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
         setStaleError(true)
       },
     )
-  }, [store])
+  }, [store, refetchAlerts])
 
   // 처음 불러오기, 실시간 구독(구독마다 채널이 하나 생기므로 정리 때 꼭 해제), 화면으로 돌아왔을 때 다시 불러오기.
   useEffect(() => {
@@ -66,6 +87,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
     document.addEventListener('visibilitychange', onVisible)
     return () => {
       seq.current++
+      alertSeq.current++
       unsubscribe()
       document.removeEventListener('visibilitychange', onVisible)
     }
@@ -210,8 +232,8 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
 
   const visible = useMemo(() => (items ?? []).filter((i) => !hidden.has(i.id)), [items, hidden])
   const sections = useMemo(
-    () => (view === 'category' ? groupByCategory(visible, NO_ALERTS) : groupByWhere(visible, NO_ALERTS, NO_PRICES)),
-    [view, visible],
+    () => (view === 'category' ? groupByCategory(visible, alerts.levels) : groupByWhere(visible, alerts.levels, NO_PRICES)),
+    [view, visible, alerts.levels],
   )
   const sum = summarize(visible, NO_PRICES)
   const ready = loadState === 'ready' && items !== null
@@ -271,6 +293,13 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
               <button type="button" aria-pressed={view === 'where'} onClick={() => chooseView('where')}>어디서 살지</button>
             </div>
 
+            {alertsFailed && (
+              <div className="stale" role="status">
+                <p>식약처 목록을 불러오지 못했어요.</p>
+                <button type="button" className="btn-text" onClick={refetchAlerts}>다시 시도</button>
+              </div>
+            )}
+
             {staleError && (
               <div className="stale" role="status">
                 <p>목록을 새로 불러오지 못했어요.</p>
@@ -295,6 +324,11 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
                         item={item}
                         members={me.members}
                         showNoCompare={s.key === 'store'}
+                        alertLevel={alerts.levels.get(item.id) ?? null}
+                        onAlert={(e) => {
+                          opener.current = e.currentTarget
+                          setAlertItem(item)
+                        }}
                         open={openRow === item.id}
                         onOpenChange={(o) => setOpenRow(o ? item.id : (cur) => (cur === item.id ? null : cur))}
                         onToggle={() => toggle(item)}
@@ -328,6 +362,17 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
       </div>
 
       {sheetOpen && <AddSheet onAdd={add} onClose={closeSheet} />}
+      {alertItem && (
+        <AlertSheet
+          itemName={alertItem.name}
+          alerts={alerts.byItem.get(alertItem.id) ?? []}
+          syncedAt={alerts.syncedAt}
+          onClose={() => {
+            setAlertItem(null)
+            opener.current?.focus({ preventScroll: true })
+          }}
+        />
+      )}
     </div>
   )
 }

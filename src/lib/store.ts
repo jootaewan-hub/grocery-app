@@ -1,5 +1,6 @@
 import type { Item } from './types'
 import type { ParsedItem } from './parse'
+import { EMPTY_ALERTS, type AlertsResult } from './alerts'
 
 export interface ListStore {
   list(): Promise<Item[]>
@@ -7,6 +8,8 @@ export interface ListStore {
   setBought(id: string, bought: boolean): Promise<void>
   remove(id: string): Promise<void>
   subscribe(onChange: () => void): () => void
+  /** 내 가구 품목과 비슷한 식약처 기록과 확인 시각 */
+  alerts(): Promise<AlertsResult>
 }
 
 // 메모리 구현: 테스트와 개발용 데모 화면에서 쓴다(저장되지 않음).
@@ -14,6 +17,7 @@ export function createMemoryStore(
   seed: Item[],
   me: { userId: string; householdId: string },
   now: () => string = () => new Date().toISOString(),
+  demoAlerts: AlertsResult = EMPTY_ALERTS,
 ): ListStore {
   let items: Item[] = seed.map((i) => ({ ...i }))
   const listeners = new Set<() => void>()
@@ -63,6 +67,9 @@ export function createMemoryStore(
       return () => {
         listeners.delete(onChange)
       }
+    },
+    async alerts() {
+      return demoAlerts
     },
   }
 }
