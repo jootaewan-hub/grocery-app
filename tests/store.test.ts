@@ -66,20 +66,24 @@ describe('demoSeed', () => {
     const d = demoSeed()
     expect(d.me.members.map((m) => m.spouseRole)).toEqual(['husband', 'wife'])
     expect(d.items.filter((i) => i.boughtAt)).toHaveLength(1)
-    expect(d.items.every((i) => i.paid === null && i.productKey === null)).toBe(true)
+    expect(d.items.every((i) => i.paid === null)).toBe(true)
+    expect(d.items.filter((i) => i.productKey).map((i) => [i.id, i.productKey, i.productQty])).toEqual([['demo-item-3', 'demo-p-1', 1]])
   })
 })
 
 describe('rowToItem', () => {
   const base = {
     id: 'i', household_id: 'h', name: '대파', spec: null, count: 1, category: '채소',
-    product_key: null, added_by: null, added_at: 't', bought_by: null, bought_at: null, paid: null,
+    product_key: null, product_id: null, product_qty: null, added_by: null, added_at: 't', bought_by: null, bought_at: null, paid: null,
   }
   it('null 열을 그대로 camelCase로 옮긴다', () => {
     expect(rowToItem(base)).toEqual({
       id: 'i', householdId: 'h', name: '대파', spec: null, count: 1, category: '채소',
-      productKey: null, addedBy: null, addedAt: 't', boughtBy: null, boughtAt: null, paid: null,
+      productKey: null, productQty: null, addedBy: null, addedAt: 't', boughtBy: null, boughtAt: null, paid: null,
     })
+  })
+  it('고른 상품은 product_id·product_qty에서 온다', () => {
+    expect(rowToItem({ ...base, product_id: 'p1', product_qty: 3 })).toMatchObject({ productKey: 'p1', productQty: 3 })
   })
   it('문자열로 온 paid는 숫자로 바꾼다', () => {
     expect(rowToItem({ ...base, bought_by: 'u', bought_at: 't', paid: '3480' as unknown as number }).paid).toBe(3480)
@@ -119,5 +123,49 @@ describe('Supabase 구독', () => {
     expect(calls[0].ons[2].filter).toBeUndefined()
     off()
     expect(removed).toHaveLength(1)
+  })
+})
+
+describe('가격 확인(메모리)', () => {
+  const add1 = { name: '비비고 왕교자', spec: '1.05kg', count: 2, category: '냉동' as const, specIsDefault: false }
+
+  it('add는 만든 품목을 돌려준다', async () => {
+    const s = createMemoryStore([], me, () => 't')
+    const made = await s.add([add1])
+    expect(made).toHaveLength(1)
+    expect(made[0]).toMatchObject({ name: '비비고 왕교자', productKey: null, productQty: null })
+    expect((await s.list())[0].id).toBe(made[0].id)
+  })
+
+  it('choose 뒤 list()의 productKey·productQty가 바뀌고 알린다', async () => {
+    const s = createMemoryStore([], me)
+    const [it1] = await s.add([add1])
+    let n = 0
+    s.subscribe(() => n++)
+    await s.choose(it1.id, 'p1', 3)
+    expect((await s.list())[0]).toMatchObject({ productKey: 'p1', productQty: 3 })
+    expect(n).toBe(1)
+  })
+
+  it('데모 저장소: 후보·검색 상태·오늘 가격·상세를 돌려준다', async () => {
+    const d = demoSeed()
+    const s = createMemoryStore(d.items, d.me, undefined, d.alerts, d.prices)
+    const ex = await s.extras()
+    expect(ex.searches.get('demo-item-6')?.status).toBe('done')
+    expect(ex.searches.get('demo-item-2')?.status).toBe('searching')
+    const p = ex.prices.get('demo-item-3')!
+    expect(p.source).toBe('danawa')
+    expect(p.price).toBeGreaterThan(0)
+    expect((await s.candidates('demo-item-6')).length).toBeGreaterThan(0)
+    const detail = await s.detail('demo-item-3')
+    expect(detail.product?.name).toContain('비비고 왕교자')
+    expect(detail.lines.length).toBeGreaterThan(0)
+  })
+
+  it('빈 메모리 저장소의 extras·candidates는 비어 있다', async () => {
+    const s = createMemoryStore([], me)
+    const ex = await s.extras()
+    expect(ex.prices.size).toBe(0)
+    expect(await s.candidates('x')).toEqual([])
   })
 })

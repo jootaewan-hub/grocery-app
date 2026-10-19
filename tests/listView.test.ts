@@ -5,7 +5,7 @@ import { groupByCategory, groupByWhere, summarize } from '../src/lib/listView'
 function item(partial: Partial<Item>): Item {
   return {
     id: 'x', householdId: 'h', name: '품목', spec: null, count: 1, category: '기타',
-    productKey: null, addedBy: 'u', addedAt: '2026-10-16T09:00:00Z', boughtBy: null, boughtAt: null, paid: null,
+    productKey: null, productQty: null, addedBy: 'u', addedAt: '2026-10-16T09:00:00Z', boughtBy: null, boughtAt: null, paid: null,
     ...partial,
   }
 }

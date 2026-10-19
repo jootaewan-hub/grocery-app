@@ -4,14 +4,14 @@ import { SUPABASE_URL } from './supabaseConfig'
 export const DEFAULT_SUPABASE_ORIGIN = new URL(SUPABASE_URL).origin
 
 /** 빌드한 페이지에 넣는 콘텐츠 보안 정책. 통신·이미지는 이 앱의 Supabase 한 곳으로만 허용한다.
- *  쇼핑몰 상품 이미지 호스트는 쓰게 될 때 정확한 호스트 이름으로 하나씩 더한다. */
+ *  쇼핑몰 상품 이미지 호스트는 정확한 호스트 이름으로 하나씩 더한다(지금: 다나와 img.danuri.io). */
 export function buildCsp(supabaseOrigin: string): string {
   const wss = supabaseOrigin.replace(/^https:\/\//, 'wss://')
   return [
     "default-src 'self'",
     "script-src 'self'",
     "style-src 'self' 'unsafe-inline'",
-    `img-src 'self' data: blob: ${supabaseOrigin}`,
+    `img-src 'self' data: blob: ${supabaseOrigin} https://img.danuri.io`, // 다나와 상품 사진
     "font-src 'self'",
     `connect-src 'self' ${supabaseOrigin} ${wss}`,
     "worker-src 'self'",

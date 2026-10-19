@@ -8,7 +8,10 @@ export type Item = {
   spec: string | null
   count: number
   category: Category
+  /** 고른 상품(grocery.products.id). 고르기 전이면 null */
   productKey: string | null
+  /** 고른 상품의 수량(1개·2개…). 고르기 전이면 null */
+  productQty: number | null
   addedBy: string | null
   addedAt: string // ISO-8601
   boughtBy: string | null

@@ -11,6 +11,12 @@ describe('CSP', () => {
     expect(img).not.toContain('https:')
     expect(img).toContain(origin)
   })
+  it('img-src는 다나와 상품 이미지 호스트 하나만 더 허용한다', () => {
+    const img = directive(csp, 'img-src').split(' ')
+    expect(img).toContain('https://img.danuri.io')
+    expect(img.filter((x) => x.startsWith('https://')).sort()).toEqual([origin, 'https://img.danuri.io'].sort())
+    expect(img).not.toContain('*')
+  })
   it('connect-src는 주어진 Supabase 주소와 그 wss만, *.supabase.co는 없다', () => {
     const connect = directive(csp, 'connect-src')
     expect(connect).toContain(origin)
