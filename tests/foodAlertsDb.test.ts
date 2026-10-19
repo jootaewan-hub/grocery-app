@@ -9,6 +9,7 @@ const SHARED = read('./fixtures/shared-schema.sql')
 const GROCERY = read('../supabase/migrations/20261017000000_grocery_items.sql')
 const ALERTS = read('../supabase/migrations/20261019000000_grocery_food_alerts.sql')
 const LOCK = read('../supabase/migrations/20261019010000_grocery_sync_lock.sql')
+const FARM = read('../supabase/migrations/20261019020000_grocery_alerts_skip_farm_lots.sql')
 
 const A = '00000000-0000-4000-8000-00000000000a'
 const C = '00000000-0000-4000-8000-00000000000c'
@@ -77,6 +78,7 @@ beforeAll(async () => {
   await db.exec(GROCERY)
   await db.exec(ALERTS)
   await db.exec(LOCK)
+  await db.exec(FARM)
 })
 
 describe('동기화 잠금', () => {
@@ -164,6 +166,22 @@ describe('식약처 대조', () => {
     await alert({ id: '1', product: '국산 고추', maker: '장수식품' })
     await item(hhA, A, '고추 추장') // '추장'은 '고추'+'장수식품'을 이어 붙여야만 생기는 조각
     expect(await alertsFor(A)).toHaveLength(0)
+  })
+
+  it('농가 단위 농산물 부적합(생산자 이름 일부 가림·생산자 미상)은 목록 대조에서 뺀다', async () => {
+    await alert({ source: 'I2620', id: '1', product: '고수', maker: '이*옥' })
+    await alert({ source: 'I2620', id: '2', product: '고수', maker: '생산자 특정불가' })
+    await alert({ source: 'I2620', id: '3', product: '고수(잎)', maker: '생산자 미상' })
+    await item(hhA, A, '고수')
+    expect(await alertsFor(A)).toHaveLength(0)
+  })
+
+  it('업체 이름이 있는 검사부적합과 회수·판매중지는 생산자 이름이 가려져도 그대로 대조한다', async () => {
+    await alert({ source: 'I2620', id: '1', product: '고수 샐러드', maker: '○○식품' })
+    await alert({ source: 'I0490', id: '2', product: '고수 무침', maker: '강**' })
+    await alert({ source: 'I2620', id: '3', product: '고수 페스토', maker: null })
+    await item(hhA, A, '고수')
+    expect((await alertsFor(A)).map((r) => r.product_name).sort()).toEqual(['고수 무침', '고수 샐러드', '고수 페스토'])
   })
 
   it('산 품목은 뺀다', async () => {
