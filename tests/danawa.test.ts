@@ -47,6 +47,16 @@ describe('다나와 검색', () => {
     ])
   })
 
+  it('같은 상품(pcode)이 두 번 나오면 앞의 것만 남긴다', () => {
+    const html = read('search-bibigo.html')
+    const first = html.indexOf('<li class=')
+    const firstEnd = html.indexOf('<li class=', first + 10)
+    const doubled = html.slice(0, firstEnd) + html.slice(first, firstEnd) + html.slice(firstEnd)
+    const items = parseDanawaSearch(doubled)
+    expect(items.filter((i) => i.pcode === '7809349')).toHaveLength(1)
+    expect(items).toHaveLength(8)
+  })
+
   it('"검색결과가 없습니다" 페이지는 빈 배열', () => {
     expect(parseDanawaSearch(read('search-none.html'))).toEqual([])
   })
@@ -89,6 +99,16 @@ describe('다나와 상품 페이지', () => {
   it('JSON-LD 이름이 없으면 pageQty는 null', () => {
     const html = read('product-5643303.html').replace(/"name"\s*:\s*"CJ제일제당 비비고 왕교자 1\.05kg \(3개\)"/, '"name":"CJ제일제당 비비고 왕교자 1.05kg"')
     expect(parseDanawaProduct(html, '5643303').pageQty).toBeNull()
+  })
+
+  it('수량 표시도 다른 구성도 없는 단일 상품은 페이지 수량을 1로 본다', () => {
+    const html = read('product-5643303.html')
+      .replace(/"name"\s*:\s*"CJ제일제당 비비고 왕교자 1\.05kg \(3개\)"/, '"name":"CJ제일제당 비비고 왕교자 1.05kg"')
+      .replace(/다른 구성/g, '다른 제목')
+    const p = parseDanawaProduct(html, '5643303')
+    expect(p.variants).toEqual([])
+    expect(p.pageQty).toBe(1)
+    expect(p.offers.length).toBeGreaterThan(0)
   })
 
   it('JSON-LD Product가 없으면 DanawaParseError', () => {

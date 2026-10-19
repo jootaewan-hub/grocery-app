@@ -169,3 +169,40 @@ describe('가격 확인(메모리)', () => {
     expect(await s.candidates('x')).toEqual([])
   })
 })
+
+describe('Supabase 저장소: 가격 확인', () => {
+  // 부른 표·select 문자열·함수 호출을 기록하는 가짜 클라이언트. 모든 쿼리는 빈 결과로 끝난다.
+  function fakeClient(invokeData: unknown = { status: 'done' }) {
+    const selects: { table: string; cols: string }[] = []
+    const invokes: { name: string; body: unknown }[] = []
+    const result = { data: [], error: null }
+    const chain = (table: string): Record<string, unknown> => {
+      const c: Record<string, unknown> = {}
+      for (const m of ['eq', 'not', 'order', 'limit', 'in']) c[m] = () => c
+      c.select = (cols: string) => { selects.push({ table, cols }); return c }
+      c.maybeSingle = () => Promise.resolve({ data: null, error: null })
+      c.then = (ok: (v: unknown) => unknown) => Promise.resolve(result).then(ok)
+      return c
+    }
+    const client = {
+      schema: () => ({ from: (t: string) => chain(t), rpc: () => Promise.resolve(result) }),
+      functions: { invoke: (name: string, opts: { body: unknown }) => { invokes.push({ name, body: opts.body }); return Promise.resolve({ data: invokeData, error: null }) } },
+    }
+    return { selects, invokes, client: client as unknown as SupabaseClient }
+  }
+  const mem = { userId: 'u', householdId: 'h', members: [] }
+
+  it('고른 상품명은 items.product_id 관계를 이름으로 지정해 읽는다(후보 표를 거치는 관계와 헷갈리지 않게)', async () => {
+    const { selects, client } = fakeClient()
+    await createSupabaseStore(client, mem).extras()
+    const items = selects.find((s) => s.table === 'items')!
+    expect(items.cols).toContain('products!items_product_id_fkey(name)')
+  })
+
+  it('findCandidates는 함수가 돌려준 상태를 돌려준다(기억으로 이었으면 remembered)', async () => {
+    const { invokes, client } = fakeClient({ status: 'remembered' })
+    const st = await createSupabaseStore(client, mem).findCandidates('i1')
+    expect(st).toBe('remembered')
+    expect(invokes).toEqual([{ name: 'product-search', body: { itemId: 'i1' } }])
+  })
+})

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { checkedText, farmLine, kstDay, priceRowText, safetySummary, searchLabel, SHORTCUTS, splitLines, type PriceLine, type SafetyRecord } from '../src/lib/products'
+import { checkedText, farmLine, isStale, kstDay, priceRowText, ratingNote, safetySummary, searchLabel, SHORTCUTS, splitLines, toFind, type ItemSearch, type PriceLine, type SafetyRecord } from '../src/lib/products'
+import type { Item } from '../src/lib/types'
 
 const line = (p: Partial<PriceLine>): PriceLine => ({
   price: 10000, seller: null, source: 'danawa', qty: 1, delivery: null, checkedAt: '2026-10-20T01:00:00Z',
@@ -86,15 +87,55 @@ describe('품목 상세 문구', () => {
     via: 'item_name', farm: false, ...p,
   })
 
-  it('식약처 기록 요약: 농가 기록을 빼고 출처별 건수, 없으면 찾은 기록 없음, 실패면 확인 못 함', () => {
-    expect(safetySummary([rec({}), rec({ sourceId: '2', source: 'I2620' }), rec({ sourceId: '3', source: 'I2620' })], false)).toBe('회수·판매중지 1건, 검사부적합 2건')
-    expect(safetySummary([rec({ source: 'I2620', farm: true })], false)).toBe('찾은 기록 없음')
-    expect(safetySummary([], false)).toBe('찾은 기록 없음')
-    expect(safetySummary([], true)).toBe('확인 못 함')
+  const synced = { I0490: 't', I2620: 't', I2715: 't' }
+  it('식약처 기록 요약: 농가 기록을 빼고 출처별 건수, 없으면 찾은 기록 없음', () => {
+    expect(safetySummary([rec({}), rec({ sourceId: '2', source: 'I2620' }), rec({ sourceId: '3', source: 'I2620' })], synced)).toBe('회수·판매중지 1건, 검사부적합 2건')
+    expect(safetySummary([rec({ source: 'I2620', farm: true })], synced)).toBe('찾은 기록 없음')
+    expect(safetySummary([], synced)).toBe('찾은 기록 없음')
+  })
+
+  it('식약처 목록을 한 번도 받지 못했으면 기록 없음 대신 확인 못 함', () => {
+    expect(safetySummary([], {})).toBe('확인 못 함')
+    expect(safetySummary([], { I0490: 't' })).toBe('찾은 기록 없음')
+  })
+
+  it('평점 기준 시각: 읽은 시각이 있으면 다나와와 시각, 없으면 시각 모름', () => {
+    expect(ratingNote('2026-10-20T00:10:00Z', new Date('2026-10-20T03:00:00Z'))).toBe('다나와, 오늘 09:10')
+    expect(ratingNote(null)).toBe('다나와(확인 시각 모름)')
   })
 
   it('농가 단위 기록 줄: 있으면 건수, 없으면 null', () => {
     expect(farmLine([rec({ farm: true }), rec({ sourceId: '2', farm: true }), rec({ sourceId: '3' })])).toBe('같은 품목 농산물 부적합 2건(농가 단위)')
     expect(farmLine([rec({})])).toBeNull()
+  })
+})
+
+describe('자동 후보 찾기 대상', () => {
+  const NOW = Date.parse('2026-10-20T03:00:00Z')
+  const ago = (ms: number) => new Date(NOW - ms).toISOString()
+  const it_ = (p: Partial<Item>): Item => ({
+    id: 'i', householdId: 'h', name: 'x', spec: null, count: 1, category: '기타', productKey: null, productQty: null,
+    addedBy: 'u', addedAt: 't', boughtBy: null, boughtAt: null, paid: null, ...p,
+  })
+  const search = (status: ItemSearch['status'], updatedAt: string): ItemSearch => ({ status, candidateCount: 0, updatedAt })
+
+  it('상태가 없고 요청한 적 없는 안 산·안 고른 품목만', () => {
+    const items = [it_({ id: 'a' }), it_({ id: 'b', boughtAt: 't' }), it_({ id: 'c', productKey: 'p' }), it_({ id: 'd' })]
+    const searches = new Map([['d', search('done', ago(1000))]])
+    expect(toFind(items, searches, new Map(), NOW)).toEqual(['a'])
+  })
+
+  it('2분 안에 요청한 품목은 다시 고르지 않는다(상태가 아직 없어도) — 요청이 끝없이 반복되지 않게', () => {
+    const items = [it_({ id: 'a' })]
+    expect(toFind(items, new Map(), new Map([['a', NOW - 60_000]]), NOW)).toEqual([])
+    expect(toFind(items, new Map(), new Map([['a', NOW - 121_000]]), NOW)).toEqual(['a'])
+  })
+
+  it('찾는 중이 2분 넘게 멈춘 품목은 다시 찾는다', () => {
+    const items = [it_({ id: 'a' }), it_({ id: 'b' })]
+    const searches = new Map([['a', search('searching', ago(121_000))], ['b', search('searching', ago(30_000))]])
+    expect(toFind(items, searches, new Map(), NOW)).toEqual(['a'])
+    expect(isStale(searches.get('a')!, NOW)).toBe(true)
+    expect(isStale(searches.get('b')!, NOW)).toBe(false)
   })
 })

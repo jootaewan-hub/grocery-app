@@ -10,8 +10,8 @@ export type SearchDeps = {
   remembered(itemId: string): Promise<{ productId: string; qty: number } | null>
   /** 2분 안에 'searching'이 아니면 'searching'으로 바꾸고 true */
   claim(itemId: string, query: string, nowIso: string): Promise<boolean>
-  /** reserve_fetch('danawa-search', 10000): 기다릴 ms */
-  reserve(): Promise<number>
+  /** reserve_fetch('danawa-search', 10000, maxWaitMs): 기다릴 ms, 한도를 넘으면 -1(자리를 잡지 않음) */
+  reserve(maxWaitMs: number): Promise<number>
   sleep(ms: number): Promise<void>
   fetchHtml(url: string): Promise<{ status: number; text: string }>
   /** 상품 upsert + 그 품목 후보 교체, 저장한 후보 수 */
@@ -56,9 +56,12 @@ export async function handle(req: Request, deps: SearchDeps): Promise<Response> 
   const now = deps.now()
   if (!(await deps.claim(itemId, query, now.toISOString()))) return json(200, { status: 'skipped' })
 
-  const wait = await deps.reserve()
-  // 차례가 너무 멀면 기다리지 않는다. 'searching'은 2분 뒤 다시 잡을 수 있으니 끝내지 않는다.
-  if (wait > MAX_WAIT_MS) return json(202, { status: 'busy' })
+  const wait = await deps.reserve(MAX_WAIT_MS)
+  // 차례가 너무 멀면 기다리지 않고 찾는 중을 풀어 둔다(앱이 다시 시도할 수 있게).
+  if (wait < 0) {
+    await deps.finish(itemId, 'error', 0, 'busy')
+    return json(202, { status: 'busy' })
+  }
   if (wait > 0) await deps.sleep(wait)
 
   let res: { status: number; text: string }
@@ -79,6 +82,10 @@ export async function handle(req: Request, deps: SearchDeps): Promise<Response> 
     await deps.finish(itemId, 'error', 0, e instanceof DanawaParseError ? 'parse_failed' : 'parse_error')
     return json(502, { status: 'error' })
   }
+  // 저장할 수 있는 수량(1~99)만 남긴다. 줄이 하나도 안 남는 상품은 뺀다.
+  items = items
+    .map((i) => ({ ...i, variants: i.variants.filter((v) => v.qty >= 1 && v.qty <= 99) }))
+    .filter((i) => i.variants.length > 0)
   if (items.length === 0) {
     await deps.finish(itemId, 'none', 0, null)
     return json(200, { status: 'none' })

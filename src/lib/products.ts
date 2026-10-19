@@ -1,9 +1,13 @@
 // 가격 확인(④-1): 후보·가격 줄·안전 기록 타입과 화면 규칙.
 // "가장 싼 값"은 오늘(한국 시간) 확인했고 고른 수량과 같은 줄에서만 고른다(설계 4-3, 화면 설계 4절).
 import type { AlertsResult, FoodAlert, FoodSource } from './alerts'
+import type { Item } from './types'
 import { won } from './format'
 
 export type ItemSearch = { status: 'searching' | 'done' | 'none' | 'error'; candidateCount: number; updatedAt: string }
+
+/** product-search 응답 */
+export type SearchResult = 'remembered' | 'done' | 'none' | 'skipped' | 'busy' | 'error'
 
 export type CandidateVariant = { qty: number; price: number; unitPrice: number | null; unitLabel: string | null; mallCount: number | null }
 export type Candidate = {
@@ -21,7 +25,7 @@ export type PriceLine = ItemPrice & { unitPrice: number | null; unitLabel: strin
 export type SafetyRecord = FoodAlert & { via: 'item_name' | 'product_name'; farm: boolean }
 
 export type ItemDetailData = {
-  product: { id: string; name: string; imageUrl: string | null; rating: number | null; reviewCount: number | null; pcode: string } | null
+  product: { id: string; name: string; imageUrl: string | null; rating: number | null; reviewCount: number | null; ratedAt: string | null; pcode: string } | null
   /** 가장 최근 확인 */
   check: { checkedAt: string; ok: boolean; error: string | null } | null
   /** 가장 최근 성공한 확인의 줄 */
@@ -87,16 +91,48 @@ export function priceRowText(l: PriceLine): string {
 
 const SHORT_SOURCE: Record<FoodSource, string> = { I0490: '회수·판매중지', I2620: '검사부적합', I2715: '해외직구 위해식품' }
 
-/** 요약 칸의 식약처 기록: 농가 단위 기록은 빼고 출처별 건수. 기록이 없을 때 "안전함"이라고 쓰지 않는다. */
-export function safetySummary(records: SafetyRecord[], failed: boolean): string {
-  if (failed) return '확인 못 함'
+/** 요약 칸의 식약처 기록: 농가 단위 기록은 빼고 출처별 건수. 기록이 없을 때 "안전함"이라고 쓰지 않고,
+ *  목록을 한 번도 받지 못했으면(확인한 범위가 없음) "확인 못 함"이라고 쓴다. */
+export function safetySummary(records: SafetyRecord[], syncedAt: AlertsResult['syncedAt']): string {
   const counts = new Map<FoodSource, number>()
   for (const r of records) if (!r.farm) counts.set(r.source, (counts.get(r.source) ?? 0) + 1)
-  if (counts.size === 0) return '찾은 기록 없음'
+  if (counts.size === 0) return Object.values(syncedAt).some(Boolean) ? '찾은 기록 없음' : '확인 못 함'
   return (['I0490', 'I2620', 'I2715'] as FoodSource[])
     .filter((s) => counts.has(s))
     .map((s) => `${SHORT_SOURCE[s]} ${counts.get(s)}건`)
     .join(', ')
+}
+
+/** 평점 옆 기준 시각(평점을 마지막으로 읽은 시각) */
+export function ratingNote(ratedAt: string | null, now: Date = new Date()): string {
+  return ratedAt ? `다나와, ${checkedText(ratedAt, now)}` : '다나와(확인 시각 모름)'
+}
+
+const RETRY_MS = 2 * 60_000
+
+/** '찾는 중'이 2분 넘게 그대로면 멈춘 것으로 본다(서버도 2분 뒤 다시 잡게 해 둠) */
+export function isStale(s: ItemSearch, nowMs: number = Date.now()): boolean {
+  return s.status === 'searching' && nowMs - Date.parse(s.updatedAt) > RETRY_MS
+}
+
+/** 자동으로 후보를 찾을 품목: 안 샀고 상품을 안 골랐고, 상태가 없거나 '찾는 중'이 멈췄고, 2분 안에 이 화면에서 요청하지 않은 것 */
+export function toFind(
+  items: Item[],
+  searches: ReadonlyMap<string, ItemSearch>,
+  requested: ReadonlyMap<string, number>,
+  nowMs: number,
+): string[] {
+  return items
+    .filter((i) => !i.boughtAt && !i.productKey)
+    .filter((i) => {
+      const s = searches.get(i.id)
+      return !s || isStale(s, nowMs)
+    })
+    .filter((i) => {
+      const at = requested.get(i.id)
+      return at === undefined || nowMs - at > RETRY_MS
+    })
+    .map((i) => i.id)
 }
 
 /** 농가 단위 농산물 부적합(목록에서는 숨김) 줄 */

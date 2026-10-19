@@ -124,13 +124,15 @@ describe('product-search: 다나와 간격', () => {
     expect(order).toEqual(['sleep 7000', 'fetch'])
   })
 
-  it('대기가 MAX_WAIT_MS를 넘으면 202 busy이고 부르지도 끝내지도 않는다', async () => {
-    const { d, log } = deps({ reserve: async () => MAX_WAIT_MS + 1 })
+  it('차례가 한도 밖이면(reserve -1) 202 busy, 부르지 않고 찾는 중을 풀어 다시 시도할 수 있게 한다', async () => {
+    let asked: number | null = null
+    const { d, log } = deps({ reserve: async (max) => { asked = max; return -1 } })
     const res = await handle(post({ itemId: ITEM }), d)
+    expect(asked).toBe(MAX_WAIT_MS)
     expect(res.status).toBe(202)
     expect(await res.json()).toEqual({ status: 'busy' })
     expect(log.urls).toHaveLength(0)
-    expect(log.finished).toHaveLength(0)
+    expect(log.finished).toEqual([[ITEM, 'error', 0, 'busy']])
   })
 })
 
@@ -164,6 +166,17 @@ describe('product-search: 결과', () => {
     const { d, log } = deps({ fetchHtml: async () => ({ status: 200, text: '<html><body>점검 중</body></html>' }) })
     expect((await handle(post({ itemId: ITEM }), d)).status).toBe(502)
     expect(log.finished).toEqual([[ITEM, 'error', 0, 'parse_failed']])
+  })
+
+  it('수량이 1~99 밖인 줄은 빼고, 남는 줄이 없는 상품은 빼고 저장한다', async () => {
+    const html = SEARCH_HTML
+      .replace('>1개<', '>120개<') // 첫 상품 7809349의 유일한 줄
+    const { d, log } = deps({ fetchHtml: async () => ({ status: 200, text: html }) })
+    await handle(post({ itemId: ITEM }), d)
+    const saved = log.saved[0]
+    expect(saved.every((i) => i.variants.length > 0 && i.variants.every((v) => v.qty >= 1 && v.qty <= 99))).toBe(true)
+    expect(saved.some((i) => i.pcode === '7809349')).toBe(false)
+    expect(log.finished[0][1]).toBe('done')
   })
 
   it('후보 저장이 실패하면 error(save_failed)로 끝낸다', async () => {

@@ -24,26 +24,31 @@ Deno.serve(async (req) => {
       if (error) throw error
       return data === true
     },
-    reserve: async () => {
-      const { data, error } = await g().rpc('reserve_fetch', { p_key: 'danawa-search', p_gap_ms: 10_000 })
+    reserve: async (maxWaitMs) => {
+      const { data, error } = await g().rpc('reserve_fetch', { p_key: 'danawa-search', p_gap_ms: 10_000, p_max_wait_ms: maxWaitMs })
       if (error) throw error
       return Number(data)
     },
     sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
     fetchHtml,
     saveCandidates: async (itemId, items, foundAt) => {
-      const { data: products, error } = await g()
-        .from('products')
-        .upsert(
-          items.map((i) => ({
-            source: 'danawa', source_id: i.pcode, name: i.name, image_url: i.imageUrl,
-            rating: i.rating, review_count: i.reviewCount, updated_at: foundAt,
-          })),
-          { onConflict: 'source,source_id' },
-        )
-        .select('id, source_id')
-      if (error) throw error
-      const idOf = new Map((products ?? []).map((p) => [p.source_id, p.id]))
+      // 평점을 못 읽은 상품은 평점 열을 보내지 않는다(이미 있는 평점을 null로 덮지 않게)
+      const base = (i: (typeof items)[number]) => ({ source: 'danawa', source_id: i.pcode, name: i.name, image_url: i.imageUrl, updated_at: foundAt })
+      const rated = items.filter((i) => i.rating !== null)
+      const unrated = items.filter((i) => i.rating === null)
+      const idOf = new Map<string, string>()
+      for (const [rows, withRating] of [[rated, true], [unrated, false]] as const) {
+        if (rows.length === 0) continue
+        const { data, error } = await g()
+          .from('products')
+          .upsert(
+            rows.map((i) => (withRating ? { ...base(i), rating: i.rating, review_count: i.reviewCount, rated_at: foundAt } : base(i))),
+            { onConflict: 'source,source_id' },
+          )
+          .select('id, source_id')
+        if (error) throw error
+        for (const p of data ?? []) idOf.set(p.source_id, p.id)
+      }
       const rows = items.flatMap((i, rank) =>
         i.variants.map((v) => ({
           item_id: itemId, product_id: idOf.get(i.pcode), qty: v.qty, price: v.price, unit_price: v.unitPrice,

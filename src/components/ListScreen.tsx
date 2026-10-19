@@ -7,7 +7,7 @@ import type { Membership } from '../lib/session'
 import type { ListStore } from '../lib/store'
 import type { Item, PriceCompare } from '../lib/types'
 import { josa } from '../lib/format'
-import { EMPTY_EXTRAS, type ItemExtras } from '../lib/products'
+import { EMPTY_EXTRAS, toFind, type ItemExtras } from '../lib/products'
 import AddSheet from './AddSheet'
 import AlertSheet from './AlertSheet'
 import CandidateSheet from './CandidateSheet'
@@ -46,8 +46,9 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   const [extras, setExtras] = useState<ItemExtras>(EMPTY_EXTRAS)
   const [extrasReady, setExtrasReady] = useState(false) // 한 번이라도 받아 왔는가
   const extrasSeq = useRef(0)
-  const requested = useRef(new Set<string>()) // 이 화면에서 후보 찾기를 이미 부른 품목
+  const requested = useRef(new Map<string, number>()) // 이 화면에서 후보 찾기를 부른 품목 → 부른 시각(ms)
   const [pickItem, setPickItem] = useState<Item | null>(null)
+  const refetchRef = useRef<() => void>(() => {}) // find가 refetch보다 먼저 정의돼 ref로 부른다
   const [detailItem, setDetailItem] = useState<Item | null>(null)
 
   // 후보 상태·오늘 최저가·고른 상품명. 실패해도 목록은 그대로(가격은 "확인 못 함"으로 남는다).
@@ -64,14 +65,29 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   }, [store])
 
   // 다나와 후보 찾기. 서버가 10초 간격으로 줄을 세우므로 기다리지 않고, 끝나면 다시 읽는다.
+  // 2분 안에 부른 품목은 다시 부르지 않고, 새로 부른 것이 있을 때만 다시 읽기를 예약한다(요청이 되풀이되지 않게).
+  // 기억으로 이어졌으면(remembered) 바로 가격 확인까지 한다(화면 설계 8-1).
   const find = useCallback(
     (ids: string[]) => {
-      for (const id of ids) {
-        if (requested.current.has(id)) continue
-        requested.current.add(id)
-        store.findCandidates(id).then(refetchExtras, refetchExtras)
+      const now = Date.now()
+      const fresh = ids.filter((id) => {
+        const at = requested.current.get(id)
+        return at === undefined || now - at > 2 * 60_000
+      })
+      for (const id of fresh) {
+        requested.current.set(id, now)
+        store.findCandidates(id).then(
+          (st) => {
+            refetchExtras()
+            if (st === 'remembered') {
+              refetchRef.current()
+              store.checkPrice(id).then(refetchExtras, refetchExtras)
+            }
+          },
+          refetchExtras,
+        )
       }
-      if (ids.length) window.setTimeout(refetchExtras, 300) // '후보 찾는 중'을 바로 보이게
+      if (fresh.length) window.setTimeout(refetchExtras, 300) // '후보 찾는 중'을 바로 보이게
     },
     [store, refetchExtras],
   )
@@ -109,6 +125,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
       },
     )
   }, [store, refetchAlerts, refetchExtras])
+  refetchRef.current = refetch
 
   // 처음 불러오기, 실시간 구독(구독마다 채널이 하나 생기므로 정리 때 꼭 해제), 화면으로 돌아왔을 때 다시 불러오기.
   useEffect(() => {
@@ -262,7 +279,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   // 다른 기기에서 담았거나 예전에 담아 후보 찾기를 한 적 없는 품목도 찾는다
   useEffect(() => {
     if (!items || !extrasReady) return
-    find(items.filter((i) => !i.boughtAt && !i.productKey && !extras.searches.has(i.id)).map((i) => i.id))
+    find(toFind(items, extras.searches, requested.current, Date.now()))
     // extras를 한 번 받은 뒤에만 판단한다(빈 extras로 모든 품목을 다시 찾지 않게)
   }, [items, extras, extrasReady, find])
 

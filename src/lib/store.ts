@@ -10,6 +10,7 @@ import {
   type ItemPrice,
   type ItemSearch,
   type PriceLine,
+  type SearchResult,
 } from './products'
 
 export interface ListStore {
@@ -24,8 +25,8 @@ export interface ListStore {
   /** 품목별 후보 찾기 상태, 오늘 최저가, 고른 상품명 */
   extras(): Promise<ItemExtras>
   candidates(itemId: string): Promise<Candidate[]>
-  /** 다나와에서 후보를 찾는다(product-search). 실패는 던진다 */
-  findCandidates(itemId: string, query?: string): Promise<void>
+  /** 다나와에서 후보를 찾는다(product-search). 결과 종류를 돌려주고, 실패는 던진다 */
+  findCandidates(itemId: string, query?: string): Promise<SearchResult>
   choose(itemId: string, productId: string, qty: number): Promise<void>
   /** 고른 상품의 다나와 가격을 확인한다(product-check). 같은 날은 서버가 캐시를 쓴다 */
   checkPrice(itemId: string): Promise<void>
@@ -122,7 +123,9 @@ export function createMemoryStore(
     async candidates(itemId) {
       return demoPrices.candidates[itemId] ?? []
     },
-    async findCandidates() {},
+    async findCandidates() {
+      return 'done' as const
+    },
     async choose(itemId, productId, qty) {
       items = items.map((i) => (i.id === itemId ? { ...i, productKey: productId, productQty: qty } : i))
       notify()

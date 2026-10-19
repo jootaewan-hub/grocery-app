@@ -144,7 +144,9 @@ export function parseDanawaSearch(html: string): DanawaSearchItem[] {
     throw new DanawaParseError('search: no product rows')
   }
   const items: DanawaSearchItem[] = []
+  const seen = new Set<string>() // 광고 자리와 일반 결과에 같은 상품이 나오면 앞의 것만(한 번에 upsert할 때 겹치면 실패한다)
   for (let k = 0; k < starts.length; k++) {
+    if (seen.has(starts[k][1])) continue
     const begin = starts[k].index! + starts[k][0].length
     const end = k + 1 < starts.length ? starts[k + 1].index! : html.length
     const body = html.slice(begin, end)
@@ -167,6 +169,7 @@ export function parseDanawaSearch(html: string): DanawaSearchItem[] {
     }
     if (!name || variants.length === 0) continue
     const img = body.match(/src="(https:\/\/img\.danuri\.io\/[^"]+)"/)
+    seen.add(starts[k][1])
     items.push({ pcode: starts[k][1], name, imageUrl: img ? unescape(img[1]) : null, ...ratingAndReviews(ts), variants })
   }
   if (items.length === 0) throw new DanawaParseError('search: rows without name or price')
@@ -233,7 +236,8 @@ export function parseDanawaProduct(html: string, pcode: string): DanawaProduct {
     imageUrl: typeof image === 'string' && image.startsWith('https://') ? image : null,
     rating: rv != null && Number.isFinite(Number(rv)) ? Number(rv) : null,
     reviewCount: rc != null && Number.isFinite(Number(rc)) ? Number(rc) : null,
-    pageQty: q ? Number(q[1]) : null,
+    // 이름에 "(N개)"가 없고 다른 구성도 없으면 수량 선택이 없는 단일 상품: 쇼핑몰 줄은 1개 가격
+    pageQty: q ? Number(q[1]) : variants.length === 0 ? 1 : null,
     variants,
     offers: readOffers(html),
   }

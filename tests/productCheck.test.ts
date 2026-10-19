@@ -90,6 +90,15 @@ describe('product-check', () => {
     expect(log.saved[0].variants.length).toBeGreaterThan(0)
   })
 
+  it('읽은 가격 줄이 하나도 없으면(구조가 바뀜) 저장하지 않고 parse_empty로 남긴다', async () => {
+    const html = HTML.replace(/다른 구성/g, '다른 제목').replace(/쇼핑몰별 최저가/g, '다른 제목')
+    const { d, log } = deps({ fetchHtml: async () => ({ status: 200, text: html }) })
+    const res = await handle(post({ productId: PRODUCT }), d)
+    expect(res.status).toBe(502)
+    expect(log.saved).toHaveLength(0)
+    expect(log.failed).toEqual(['parse_empty'])
+  })
+
   it('저장이 실패하면 save_failed로 남기고 502', async () => {
     const { d, log } = deps({ save: async () => { throw new Error('db') } })
     expect((await handle(post({ productId: PRODUCT }), d)).status).toBe(502)

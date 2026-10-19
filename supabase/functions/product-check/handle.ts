@@ -56,6 +56,8 @@ export async function handle(req: Request, deps: CheckDeps): Promise<Response> {
     return failWith(e instanceof DanawaParseError ? 'parse_failed' : 'parse_error')
   }
   if (parsed.pageQty === null) parsed = { ...parsed, offers: [] }
+  // 가격 줄을 하나도 못 읽었으면 성공으로 저장하지 않는다(구조 변경이 하루 종일 캐시로 숨지 않게)
+  if (parsed.variants.length === 0 && parsed.offers.length === 0) return failWith('parse_empty')
   try {
     await deps.save(productId, parsed, at)
   } catch {

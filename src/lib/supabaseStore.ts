@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js'
 import { groupAlerts, SOURCES, type AlertsResult, type ItemAlertRow } from './alerts'
 import type { Category } from './categories'
-import type { Candidate, ItemDetailData, ItemPrice, ItemSearch, PriceLine, SafetyRecord } from './products'
+import type { Candidate, ItemDetailData, ItemPrice, ItemSearch, PriceLine, SafetyRecord, SearchResult } from './products'
 import type { ListStore } from './store'
 import type { Membership } from './session'
 import type { Item } from './types'
@@ -110,7 +110,8 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const [searches, prices, chosen] = await Promise.all([
         g().from('item_searches').select('item_id, status, candidate_count, updated_at'),
         g().rpc('item_prices'),
-        g().from('items').select('id, products(name)').eq('household_id', me.householdId).not('product_id', 'is', null),
+        // items → products 관계는 product_id FK와 item_candidates(연결 표) 두 갈래라 FK 이름을 지정한다
+        g().from('items').select('id, products!items_product_id_fkey(name)').eq('household_id', me.householdId).not('product_id', 'is', null),
       ])
       if (searches.error) throw searches.error
       if (prices.error) throw prices.error
@@ -154,8 +155,9 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       return [...byProduct.values()]
     },
     async findCandidates(itemId, query) {
-      const { error } = await client.functions.invoke('product-search', { body: query ? { itemId, query } : { itemId } })
+      const { data, error } = await client.functions.invoke('product-search', { body: query ? { itemId, query } : { itemId } })
       if (error) throw error
+      return ((data as { status?: SearchResult } | null)?.status ?? 'done') as SearchResult
     },
     async choose(itemId, productId, qty) {
       const { error } = await g().rpc('choose_product', { p_item: itemId, p_product: productId, p_qty: qty })
@@ -193,7 +195,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const productId = (it.data?.product_id ?? null) as string | null
       if (!productId) return { product: null, check: null, lines: [], safety: records, syncedAt }
       const [prod, checks] = await Promise.all([
-        g().from('products').select('id, source_id, name, image_url, rating, review_count').eq('id', productId).maybeSingle(),
+        g().from('products').select('id, source_id, name, image_url, rating, review_count, rated_at').eq('id', productId).maybeSingle(),
         g().from('price_checks').select('id, checked_at, ok, error').eq('product_id', productId).order('checked_at', { ascending: false }).limit(10),
       ])
       if (prod.error) throw prod.error
@@ -219,7 +221,7 @@ export function createSupabaseStore(client: SupabaseClient, me: Membership): Lis
       const p = prod.data as ProductRow | null
       return {
         product: p
-          ? { id: p.id, name: p.name, imageUrl: p.image_url, rating: p.rating == null ? null : Number(p.rating), reviewCount: p.review_count, pcode: p.source_id }
+          ? { id: p.id, name: p.name, imageUrl: p.image_url, rating: p.rating == null ? null : Number(p.rating), reviewCount: p.review_count, ratedAt: p.rated_at, pcode: p.source_id }
           : null,
         check: list[0] ? { checkedAt: list[0].checked_at, ok: list[0].ok, error: list[0].error } : null,
         lines,
@@ -254,7 +256,7 @@ type CandidateRow = {
   products: { id: string; name: string; image_url: string | null; rating: number | string | null } | null
 }
 type QuoteRow = { qty: number; seller: string | null; price: number; delivery: number | null; unit_price: number | null; unit_label: string | null; mall_count: number | null }
-type ProductRow = { id: string; source_id: string; name: string; image_url: string | null; rating: number | string | null; review_count: number | null }
+type ProductRow = { id: string; source_id: string; name: string; image_url: string | null; rating: number | string | null; review_count: number | null; rated_at: string | null }
 type SafetyRow = {
   source: string
   source_id: string

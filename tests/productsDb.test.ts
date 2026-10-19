@@ -180,6 +180,11 @@ describe('product-search가 쓰는 함수', () => {
 })
 
 describe('products', () => {
+  it('평점 확인 시각(rated_at) 열이 있다', async () => {
+    await db.query(`update grocery.products set rating = 4.8, rated_at = now() where id = $1`, [product])
+    expect(await scalar(`select rated_at is not null from grocery.products where id = $1`, [product])).toBe(true)
+  })
+
   it('authenticated는 읽기만, 로그인 안 하면 못 읽는다', async () => {
     expect((await as(A, `select name from grocery.products`)).length).toBe(1)
     expect(await errorOf(as(A, `insert into grocery.products (source, source_id, name) values ('danawa', '1', 'x')`))).toMatch(/permission denied/)
@@ -190,15 +195,23 @@ describe('products', () => {
 describe('요청 간격', () => {
   it('reserve_fetch: 처음 0, 바로 다시 약 10000, 그다음 약 20000', async () => {
     const w: number[] = []
-    for (let i = 0; i < 3; i++) w.push(await scalar<number>(`select grocery.reserve_fetch('danawa-search', 10000)`))
+    for (let i = 0; i < 3; i++) w.push(await scalar<number>(`select grocery.reserve_fetch('danawa-search', 10000, 60000)`))
     expect(w[0]).toBe(0)
     expect(w[1]).toBeGreaterThan(9000)
     expect(w[1]).toBeLessThanOrEqual(10000)
     expect(w[2]).toBeGreaterThan(19000)
   })
 
+  it('reserve_fetch: 기다릴 시간이 한도를 넘으면 -1이고 자리를 잡지 않는다', async () => {
+    expect(await scalar<number>(`select grocery.reserve_fetch('danawa-search', 10000, 15000)`)).toBe(0)
+    expect(await scalar<number>(`select grocery.reserve_fetch('danawa-search', 10000, 15000)`)).toBeGreaterThan(9000)
+    expect(await scalar<number>(`select grocery.reserve_fetch('danawa-search', 10000, 15000)`)).toBe(-1)
+    // 자리를 잡지 않았으므로 다음 차례는 여전히 약 20초 뒤
+    expect(await scalar<number>(`select grocery.reserve_fetch('danawa-search', 10000, 25000)`)).toBeGreaterThan(19000)
+  })
+
   it('reserve_fetch·fetch_gate: authenticated는 부르거나 읽지 못한다', async () => {
-    expect(await errorOf(as(A, `select grocery.reserve_fetch('danawa-search', 1)`))).toMatch(/permission denied/)
+    expect(await errorOf(as(A, `select grocery.reserve_fetch('danawa-search', 1, 1)`))).toMatch(/permission denied/)
     expect(await errorOf(as(A, `select * from grocery.fetch_gate`))).toMatch(/permission denied/)
   })
 })

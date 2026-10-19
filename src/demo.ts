@@ -96,7 +96,7 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
       ],
     },
     products: {
-      'demo-p-1': { id: 'demo-p-1', name: 'CJ제일제당 비비고 왕교자 1.05kg', imageUrl: null, rating: 4.8, reviewCount: 9099, pcode: '5643303' },
+      'demo-p-1': { id: 'demo-p-1', name: 'CJ제일제당 비비고 왕교자 1.05kg', imageUrl: null, rating: 4.8, reviewCount: 9099, ratedAt: at, pcode: '5643303' },
     },
     lines: {
       'demo-p-1': [

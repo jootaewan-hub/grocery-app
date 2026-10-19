@@ -27,7 +27,9 @@ Deno.serve(async (req) => {
     },
     fetchHtml,
     save: async (id, p, at) => {
-      const up = await g().from('products').update({ rating: p.rating, review_count: p.reviewCount, updated_at: at }).eq('id', id)
+      // 평점을 못 읽었으면 이전 평점과 그 시각을 그대로 둔다
+      const patch = p.rating === null ? { updated_at: at } : { rating: p.rating, review_count: p.reviewCount, rated_at: at, updated_at: at }
+      const up = await g().from('products').update(patch).eq('id', id)
       if (up.error) throw up.error
       const { data: check, error } = await g().from('price_checks')
         .insert({ product_id: id, source: 'danawa', checked_at: at, ok: true, page_qty: p.pageQty })
@@ -43,9 +45,11 @@ Deno.serve(async (req) => {
           unit_price: null, unit_label: null, mall_count: null,
         }))),
       ]
-      if (rows.length) {
-        const ins = await g().from('price_quotes').insert(rows)
-        if (ins.error) throw ins.error
+      const ins = await g().from('price_quotes').insert(rows)
+      if (ins.error) {
+        // 줄 없는 성공 기록이 남아 오늘 캐시로 쓰이지 않게 방금 넣은 확인을 지운다
+        await g().from('price_checks').delete().eq('id', check.id)
+        throw ins.error
       }
     },
     fail: async (id, err, at) => {

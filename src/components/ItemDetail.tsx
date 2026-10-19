@@ -7,6 +7,7 @@ import {
   farmLine,
   kstDay,
   priceRowText,
+  ratingNote,
   safetySummary,
   SHORTCUTS,
   splitLines,
@@ -145,12 +146,12 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
                 </div>
                 <div className="summary-cell">
                   <p className="summary-k">식약처 기록</p>
-                  <p className="summary-v detail-small">{safetySummary(data.safety, false)}</p>
+                  <p className="summary-v detail-small">{safetySummary(data.safety, data.syncedAt)}</p>
                 </div>
                 <div className="summary-cell">
                   <p className="summary-k">평점</p>
                   <p className="summary-v num">{data.product?.rating != null ? data.product.rating.toFixed(1) : '확인 못 함'}</p>
-                  {data.product?.rating != null && <p className="summary-note">다나와{data.check ? `, ${checkedText(data.check.checkedAt)}` : ''}</p>}
+                  {data.product?.rating != null && <p className="summary-note">{ratingNote(data.product.ratedAt)}</p>}
                 </div>
                 <div className="summary-cell">
                   <p className="summary-k">더 나은 상품</p>
@@ -199,7 +200,9 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
                     return (
                       <div key={src} className="detail-block">
                         <p className="detail-sub">{SOURCE_NAME[src]}</p>
-                        {recs.length === 0 ? (
+                        {!data.syncedAt[src] ? (
+                          <p className="detail-none">확인 못 함(아직 목록을 받지 못했어요)</p>
+                        ) : recs.length === 0 ? (
                           <p className="detail-none">확인한 범위에서 찾은 기록 없음</p>
                         ) : (
                           <ul className="alert-list">{recs.map((r) => <SafetyCard key={r.sourceId} r={r} />)}</ul>
@@ -218,7 +221,7 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
                     <p className="detail-rating">
                       <span className="num">평점 {data.product.rating.toFixed(1)}</span>
                       {data.product.reviewCount != null && <span className="num">, 후기 {data.product.reviewCount.toLocaleString('ko-KR')}개</span>}
-                      <span className="detail-none"> (다나와{data.check ? `, ${checkedText(data.check.checkedAt)}` : ''})</span>
+                      <span className="detail-none"> ({ratingNote(data.product.ratedAt)})</span>
                     </p>
                   ) : (
                     <p className="detail-none">평점 확인 못 함</p>

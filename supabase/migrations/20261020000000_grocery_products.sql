@@ -10,6 +10,7 @@ create table grocery.products (
   image_url text,
   rating numeric(2, 1),
   review_count int,
+  rated_at timestamptz, -- 평점·후기 수를 마지막으로 읽은 시각(화면의 기준 시각)
   updated_at timestamptz not null default now(),
   unique (source, source_id)
 );
@@ -94,17 +95,22 @@ begin
 end;
 $$;
 
--- 기다릴 ms를 돌려주고 다음 차례를 예약한다. 서비스 롤만 부른다.
-create function grocery.reserve_fetch(p_key text, p_gap_ms int)
+-- 기다릴 ms를 돌려주고 다음 차례를 예약한다. 기다림이 p_max_wait_ms를 넘으면 -1이고 자리를 잡지 않는다
+-- (잡고 안 쓰면 뒤 차례가 쓸데없이 밀린다). 서비스 롤만 부른다.
+create function grocery.reserve_fetch(p_key text, p_gap_ms int, p_max_wait_ms int)
 returns int
 language sql
 volatile
 set search_path = ''
 as $$
-  update grocery.fetch_gate g
-     set next_at = greatest(g.next_at, now()) + make_interval(secs => p_gap_ms / 1000.0)
-   where g.key = p_key
-  returning greatest(0, ceil(extract(epoch from (g.next_at - make_interval(secs => p_gap_ms / 1000.0) - now())) * 1000))::int
+  with up as (
+    update grocery.fetch_gate g
+       set next_at = greatest(g.next_at, now()) + make_interval(secs => p_gap_ms / 1000.0)
+     where g.key = p_key
+       and greatest(g.next_at, now()) - now() <= make_interval(secs => p_max_wait_ms / 1000.0)
+    returning greatest(0, ceil(extract(epoch from (g.next_at - make_interval(secs => p_gap_ms / 1000.0) - now())) * 1000))::int as wait
+  )
+  select coalesce((select wait from up), -1)
 $$;
 
 -- 후보 찾기를 시작한다고 표시한다. 처음이거나, 끝났거나, 'searching'이 2분 넘게 남았을 때만 잡는다(두 기기 중복 방지).
@@ -174,8 +180,8 @@ revoke execute on function grocery.name_key(text, text) from public, anon;
 grant execute on function grocery.name_key(text, text) to authenticated, service_role;
 revoke execute on function grocery.choose_product(uuid, uuid, int) from public, anon;
 grant execute on function grocery.choose_product(uuid, uuid, int) to authenticated;
-revoke execute on function grocery.reserve_fetch(text, int) from public, anon, authenticated;
-grant execute on function grocery.reserve_fetch(text, int) to service_role;
+revoke execute on function grocery.reserve_fetch(text, int, int) from public, anon, authenticated;
+grant execute on function grocery.reserve_fetch(text, int, int) to service_role;
 revoke execute on function grocery.claim_search(uuid, text, timestamptz) from public, anon, authenticated;
 grant execute on function grocery.claim_search(uuid, text, timestamptz) to service_role;
 revoke execute on function grocery.remembered_product(uuid) from public, anon;
