@@ -142,6 +142,23 @@ describe('보안', () => {
     expect(res.stats).toEqual({ fetched: 4, dropped: 1, merged: 1, mergedDiff: ['TEST_ITMNM'] })
   })
 
+  it('I2620은 검사 항목마다 한 줄이라 같은 번호의 사유를 모두 합친다', async () => {
+    const impl: FetchLike = async () => ({
+      ok: true, status: 200,
+      json: async () => ({ I2620: { total_count: '4', row: [
+        { RTRVLDSUSE_SEQ: '1', PRDTNM: 'a', TEST_ITMNM: '세균수', TESTANALS_RSLT: '5.0x10^5' },
+        { RTRVLDSUSE_SEQ: '1', PRDTNM: 'a', TEST_ITMNM: '대장균군', TESTANALS_RSLT: '양성' },
+        { RTRVLDSUSE_SEQ: '1', PRDTNM: 'a', TEST_ITMNM: '세균수', TESTANALS_RSLT: '5.0x10^5' },
+        { RTRVLDSUSE_SEQ: '2', PRDTNM: 'b', TEST_ITMNM: '산가', TESTANALS_RSLT: '3.1' },
+      ], RESULT: { CODE: 'INFO-000' } } }),
+    })
+    const res = await fetchService('I2620', 'KEY', impl)
+    expect(res.rows.map((r) => [r.source_id, r.reason])).toEqual([
+      ['1', '세균수: 5.0x10^5 / 대장균군: 양성'],
+      ['2', '산가: 3.1'],
+    ])
+  })
+
   it('한 페이지에 1000건이 넘게 와도 1000건까지만 쓴다', async () => {
     const impl: FetchLike = async () => ({
       ok: true, status: 200,

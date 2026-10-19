@@ -30,6 +30,7 @@ export class FoodApiError extends Error {
 }
 
 const PAGE = 1000
+const REASON_SEP = ' / '
 // https만 쓴다: 키가 주소에 들어가므로 평문 http로는 보내지 않는다(2026-10-19 인증서 확인).
 const BASE = 'https://openapi.foodsafetykorea.go.kr/api'
 /** 전체 건수 상한. 2026-10 기준 가장 큰 서비스(I2715)가 5,013건이라 넉넉히 둔다. 응답이 이상하게 크면 멈춘다. */
@@ -154,6 +155,11 @@ export async function fetchService(
         for (const k of new Set([...Object.keys(prev.raw), ...Object.keys(r)])) {
           if (String(prev.raw[k] ?? '') !== String(r[k] ?? '')) diff.add(k)
         }
+        // I2620은 부적합 검사 항목마다 한 줄이 같은 번호로 온다(2026-10-19 실제 수집: 537줄 중 96줄).
+        // 마지막 줄만 남기면 항목이 사라지므로 사유를 겹치지 않게 이어 붙인다.
+        const reasons = (prev.reason ?? '').split(REASON_SEP).filter(Boolean)
+        if (row.reason && !reasons.includes(row.reason)) reasons.push(row.reason)
+        row.reason = reasons.length ? reasons.join(REASON_SEP) : null
         byId.delete(row.source_id) // 다시 넣어 순서를 마지막 위치로
       }
       byId.set(row.source_id, row)
