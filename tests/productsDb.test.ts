@@ -151,6 +151,34 @@ describe('후보·검색 상태', () => {
   })
 })
 
+describe('product-search가 쓰는 함수', () => {
+  it('claim_search: 처음·끝난 뒤·2분 지난 찾는 중이면 잡고, 2분 안 찾는 중이면 못 잡는다', async () => {
+    const id = await item(hhA, A, '우유')
+    const claim = (at: string) => scalar<boolean>(`select grocery.claim_search($1, '우유', $2::timestamptz)`, [id, at])
+    expect(await claim('2026-10-20T01:00:00Z')).toBe(true)
+    expect(await claim('2026-10-20T01:01:00Z')).toBe(false)
+    expect(await claim('2026-10-20T01:02:01Z')).toBe(true)
+    await db.query(`update grocery.item_searches set status = 'done' where item_id = $1`, [id])
+    expect(await claim('2026-10-20T01:02:30Z')).toBe(true)
+    expect(await scalar(`select status from grocery.item_searches where item_id = $1`, [id])).toBe('searching')
+  })
+
+  it('claim_search: authenticated는 부르지 못한다', async () => {
+    const id = await item(hhA, A, '우유')
+    expect(await errorOf(as(A, `select grocery.claim_search($1, 'q', now())`, [id]))).toMatch(/permission denied/)
+  })
+
+  it('remembered_product: 같은 이름·규격으로 고른 기억을 돌려주고, 남의 품목이면 빈 결과', async () => {
+    const first = await item(hhA, A, '비비고 왕교자', '1.05kg')
+    await as(A, `select grocery.choose_product($1, $2, 2)`, [first, product])
+    const again = await item(hhA, A, '비비고  왕교자', '1.05KG')
+    expect(await as(A, `select * from grocery.remembered_product($1)`, [again])).toEqual([{ product_id: product, qty: 2 }])
+    const theirs = await item(hhC, C, '비비고 왕교자', '1.05kg')
+    expect(await as(A, `select * from grocery.remembered_product($1)`, [theirs])).toEqual([])
+    expect(await as(C, `select * from grocery.remembered_product($1)`, [theirs])).toEqual([])
+  })
+})
+
 describe('products', () => {
   it('authenticated는 읽기만, 로그인 안 하면 못 읽는다', async () => {
     expect((await as(A, `select name from grocery.products`)).length).toBe(1)

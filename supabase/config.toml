@@ -1,4 +1,11 @@
 # Supabase CLI 설정 중 이 앱에 필요한 부분만 둔다.
-# food-alerts-sync는 JWT 대신 x-sync-secret 헤더로 호출을 확인한다(GitHub Actions 예약 실행).
+# food-alerts-sync는 GitHub Actions 예약 실행이 비밀번호 없이 부른다(함수가 20시간 1회·30분 잠금으로 스스로 막는다).
 [functions.food-alerts-sync]
 verify_jwt = false
+
+# 가격 확인 함수는 로그인한 사용자만 부른다(가구 소속은 함수 안에서 RLS로 확인).
+[functions.product-search]
+verify_jwt = true
+
+[functions.product-check]
+verify_jwt = true

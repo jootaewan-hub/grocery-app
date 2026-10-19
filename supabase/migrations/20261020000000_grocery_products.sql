@@ -107,6 +107,39 @@ as $$
   returning greatest(0, ceil(extract(epoch from (g.next_at - make_interval(secs => p_gap_ms / 1000.0) - now())) * 1000))::int
 $$;
 
+-- 후보 찾기를 시작한다고 표시한다. 처음이거나, 끝났거나, 'searching'이 2분 넘게 남았을 때만 잡는다(두 기기 중복 방지).
+create function grocery.claim_search(p_item uuid, p_query text, p_now timestamptz)
+returns boolean
+language sql
+volatile
+set search_path = ''
+as $$
+  with up as (
+    insert into grocery.item_searches as s (item_id, status, query, candidate_count, error, updated_at)
+    values (p_item, 'searching', p_query, null, null, p_now)
+    on conflict (item_id) do update
+      set status = 'searching', query = excluded.query, candidate_count = null, error = null, updated_at = excluded.updated_at
+      where s.status <> 'searching' or s.updated_at < excluded.updated_at - interval '2 minutes'
+    returning 1
+  )
+  select exists (select 1 from up)
+$$;
+
+-- 그 품목과 같은 이름·규격으로 가구가 고른 상품. RLS를 따른다: 남의 품목이면 빈 결과.
+create function grocery.remembered_product(p_item uuid)
+returns table (product_id uuid, qty int)
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select c.product_id, c.qty
+    from grocery.items i
+    join grocery.product_choices c
+      on c.household_id = i.household_id and c.name_key = grocery.name_key(i.name, i.spec)
+   where i.id = p_item
+$$;
+
 -- RLS
 alter table grocery.products enable row level security;
 alter table grocery.item_searches enable row level security;
@@ -143,3 +176,7 @@ revoke execute on function grocery.choose_product(uuid, uuid, int) from public, 
 grant execute on function grocery.choose_product(uuid, uuid, int) to authenticated;
 revoke execute on function grocery.reserve_fetch(text, int) from public, anon, authenticated;
 grant execute on function grocery.reserve_fetch(text, int) to service_role;
+revoke execute on function grocery.claim_search(uuid, text, timestamptz) from public, anon, authenticated;
+grant execute on function grocery.claim_search(uuid, text, timestamptz) to service_role;
+revoke execute on function grocery.remembered_product(uuid) from public, anon;
+grant execute on function grocery.remembered_product(uuid) to authenticated;
