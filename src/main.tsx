@@ -1,6 +1,8 @@
 import { StrictMode, type ReactNode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { registerSW } from 'virtual:pwa-register'
 import App from './App'
+import { watchForUpdates } from './lib/pwaUpdate'
 import './styles/tokens.css'
 import './styles/app.css'
 
@@ -31,6 +33,14 @@ async function devScreen(): Promise<ReactNode | null> {
   }
   return null
 }
+
+// 새 버전이 배포되면 받아서 페이지를 새로 고친다(autoUpdate). 기다리던 빼기는 pagehide에서 먼저 지운다(ListScreen).
+registerSW({
+  immediate: true,
+  onRegisteredSW(_url, registration) {
+    if (registration) watchForUpdates(() => registration.update())
+  },
+})
 
 const root = createRoot(document.getElementById('root')!)
 const show = (screen: ReactNode) => root.render(<StrictMode>{screen}</StrictMode>)
