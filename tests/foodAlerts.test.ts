@@ -128,6 +128,20 @@ describe('보안', () => {
     expect(res.rows.map((r) => [r.source_id, r.product_name])).toEqual([['1', 'b'], ['2', 'c']])
   })
 
+  it('받은 행·버린 행·겹친 번호 수와 겹친 행끼리 다른 항목을 센다', async () => {
+    const impl: FetchLike = async () => ({
+      ok: true, status: 200,
+      json: async () => ({ I2620: { total_count: '4', row: [
+        { RTRVLDSUSE_SEQ: '1', PRDTNM: 'a', TEST_ITMNM: '세균수' },
+        { RTRVLDSUSE_SEQ: '1', PRDTNM: 'a', TEST_ITMNM: '대장균군' },
+        { RTRVLDSUSE_SEQ: '2', PRDTNM: '' },
+        { RTRVLDSUSE_SEQ: '3', PRDTNM: 'c' },
+      ], RESULT: { CODE: 'INFO-000' } } }),
+    })
+    const res = await fetchService('I2620', 'KEY', impl)
+    expect(res.stats).toEqual({ fetched: 4, dropped: 1, merged: 1, mergedDiff: ['TEST_ITMNM'] })
+  })
+
   it('한 페이지에 1000건이 넘게 와도 1000건까지만 쓴다', async () => {
     const impl: FetchLike = async () => ({
       ok: true, status: 200,
@@ -148,7 +162,7 @@ describe('나눠 받기', () => {
 
   it('INFO-200은 빈 결과', async () => {
     const f = fakeFetch('I0490', 0, 'INFO-200')
-    expect(await fetchService('I0490', 'KEY', f.impl)).toEqual({ rows: [], total: 0 })
+    expect(await fetchService('I0490', 'KEY', f.impl)).toEqual({ rows: [], total: 0, stats: { fetched: 0, dropped: 0, merged: 0, mergedDiff: [] } })
   })
 
   it('오류 코드는 FoodApiError이고 메시지에 키가 없다', async () => {

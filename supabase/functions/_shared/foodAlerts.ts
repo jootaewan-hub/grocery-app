@@ -113,21 +113,27 @@ type ServiceBody = { total_count?: string; row?: Record<string, unknown>[]; RESU
 
 /** 한 서비스의 전체 목록을 1000건씩 받는다. INFO-200(자료 없음)은 빈 결과, 그 밖의 코드는 FoodApiError.
  *  전체 건수는 첫 응답 값만 쓴다(뒤 응답이 늘려도 따르지 않음). 정수가 아니거나 MAX_TOTAL을 넘으면 멈춘다. */
+/** 받은 행(fetched), 고유 id·제품명이 없어 버린 행(dropped), 같은 id로 겹쳐 하나로 합친 행(merged),
+ *  겹친 행끼리 값이 달랐던 항목 이름(mergedDiff, 최대 20개). 원본 값은 담지 않는다. */
+export type FetchStats = { fetched: number; dropped: number; merged: number; mergedDiff: string[] }
+
 export async function fetchService(
   service: FoodService,
   key: string,
   fetchImpl: FetchLike,
-): Promise<{ rows: FoodAlertRow[]; total: number }> {
+): Promise<{ rows: FoodAlertRow[]; total: number; stats: FetchStats }> {
   // 같은 고유 id가 두 번 오면 뒤의 것만 남긴다: upsert 한 묶음에 같은 키가 겹치면 그 서비스 전체 저장이 실패한다.
   const byId = new Map<string, FoodAlertRow>()
   let total: number | null = null
+  const stats: FetchStats = { fetched: 0, dropped: 0, merged: 0, mergedDiff: [] }
+  const diff = new Set<string>()
   for (let start = 1; total === null || start <= total; start += PAGE) {
     const end = total === null ? PAGE : Math.min(start + PAGE - 1, total)
     const res = await fetchImpl(`${BASE}/${encodeURIComponent(key)}/${service}/json/${start}/${end}`)
     if (!res.ok) throw new FoodApiError(`HTTP-${res.status}`, `${service} 응답 실패`)
     const body = ((await res.json()) as Record<string, ServiceBody | undefined>)[service]
     const code = body?.RESULT?.CODE ?? 'NO-RESULT'
-    if (code === 'INFO-200') return { rows: [], total: 0 }
+    if (code === 'INFO-200') return { rows: [], total: 0, stats }
     if (code !== 'INFO-000') throw new FoodApiError(code, body?.RESULT?.MSG ?? `${service} 오류`)
     if (total === null) {
       const t = Number(body?.total_count)
@@ -136,12 +142,23 @@ export async function fetchService(
       total = t
     }
     for (const r of (body?.row ?? []).slice(0, PAGE)) {
+      stats.fetched++
       const row = toAlertRow(service, r)
-      if (row) {
-        byId.delete(row.source_id) // 다시 넣어 순서를 마지막 위치로
-        byId.set(row.source_id, row)
+      if (!row) {
+        stats.dropped++
+        continue
       }
+      const prev = byId.get(row.source_id)
+      if (prev) {
+        stats.merged++
+        for (const k of new Set([...Object.keys(prev.raw), ...Object.keys(r)])) {
+          if (String(prev.raw[k] ?? '') !== String(r[k] ?? '')) diff.add(k)
+        }
+        byId.delete(row.source_id) // 다시 넣어 순서를 마지막 위치로
+      }
+      byId.set(row.source_id, row)
     }
   }
-  return { rows: [...byId.values()], total: total ?? 0 }
+  stats.mergedDiff = [...diff].sort().slice(0, 20)
+  return { rows: [...byId.values()], total: total ?? 0, stats }
 }

@@ -193,6 +193,18 @@ describe('food-alerts-sync: 받기와 기록', () => {
     expect(err.length).toBeLessThanOrEqual(200)
   })
 
+  it('받은 서비스마다 집계를 로그로 남기고 로그에 키가 없다', async () => {
+    const logs: unknown[] = []
+    const { d } = deps({ log: (e) => { logs.push(e) } })
+    await handle(post(), d)
+    expect(logs).toEqual([
+      { source: 'I0490', fetched: 3, dropped: 0, merged: 0, mergedDiff: [] },
+      { source: 'I2620', fetched: 2, dropped: 0, merged: 0, mergedDiff: [] },
+      { source: 'I2715', fetched: 1200, dropped: 0, merged: 0, mergedDiff: [] },
+    ])
+    expect(JSON.stringify(logs)).not.toContain('SECRETKEY')
+  })
+
   it('응답과 기록에 키가 들어가지 않는다', async () => {
     const a = api({ I0490: 1 }, { I2620: 'ERROR-300' })
     const { d, runs } = deps({ fetchImpl: a.impl })

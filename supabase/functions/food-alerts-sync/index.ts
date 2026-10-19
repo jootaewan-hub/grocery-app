@@ -37,6 +37,7 @@ Deno.serve((req) =>
         throw new Error('save_failed')
       }
     },
+    log: (e) => console.log('food-alerts-sync', JSON.stringify(e)),
     recordRun: async (run) => {
       const { error } = await runs().insert(run)
       if (error) console.error('sync_runs 기록 실패', error.message)

@@ -8,7 +8,7 @@
 // sync_runs.error는 로그인한 사용자가 읽을 수 있으므로 정해진 분류만 남긴다:
 //   식약처 오류 코드 + 키를 가린 짧은 문구 / 'network_error' / 'save_failed'.
 // Deno 전용 API를 쓰지 않아 Vitest에서 그대로 시험한다(진입점은 index.ts).
-import { fetchService, FOOD_SERVICES, FoodApiError, type FetchLike, type FoodAlertRow, type FoodService } from '../_shared/foodAlerts.ts'
+import { fetchService, FOOD_SERVICES, FoodApiError, type FetchLike, type FetchStats, type FoodAlertRow, type FoodService } from '../_shared/foodAlerts.ts'
 
 export type SyncDeps = {
   apiKey: string | undefined
@@ -20,6 +20,8 @@ export type SyncDeps = {
   acquire(cutoffIso: string, atIso: string): Promise<boolean>
   upsert(rows: FoodAlertRow[]): Promise<void>
   recordRun(run: { source: FoodService; ok: boolean; rows: number; total: number | null; error: string | null }): Promise<void>
+  /** 받은 서비스마다 집계(건수와 항목 이름만). 함수 로그로 남긴다. */
+  log?(event: { source: FoodService } & FetchStats): void
 }
 
 const CHUNK = 500
@@ -61,9 +63,10 @@ export async function handle(req: Request, deps: SyncDeps): Promise<Response> {
   let allOk = true
   for (const source of FOOD_SERVICES) {
     let error: string | null = null
-    let fetched: { rows: FoodAlertRow[]; total: number } | null = null
+    let fetched: { rows: FoodAlertRow[]; total: number; stats: FetchStats } | null = null
     try {
       fetched = await fetchService(source, apiKey, deps.fetchImpl)
+      deps.log?.({ source, ...fetched.stats })
     } catch (e) {
       error = e instanceof FoodApiError ? sanitize(e.message, apiKey) : 'network_error'
     }
