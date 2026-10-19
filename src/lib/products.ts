@@ -1,13 +1,14 @@
 // 가격 확인(④-1): 후보·가격 줄·안전 기록 타입과 화면 규칙.
 // "가장 싼 값"은 오늘(한국 시간) 확인했고 고른 수량과 같은 줄에서만 고른다(설계 4-3, 화면 설계 4절).
 import type { AlertsResult, FoodAlert, FoodSource } from './alerts'
+import type { Category } from './categories'
 import type { Item } from './types'
 import { won } from './format'
 
 export type ItemSearch = { status: 'searching' | 'done' | 'none' | 'error'; candidateCount: number; updatedAt: string }
 
 /** product-search 응답 */
-export type SearchResult = 'remembered' | 'done' | 'none' | 'skipped' | 'busy' | 'error'
+export type SearchResult = 'remembered' | 'done' | 'none' | 'skipped' | 'busy' | 'fresh' | 'error'
 
 export type CandidateVariant = { qty: number; price: number; unitPrice: number | null; unitLabel: string | null; mallCount: number | null }
 export type Candidate = {
@@ -55,7 +56,8 @@ export function checkedText(iso: string, now: Date = new Date()): string {
 }
 
 /** 상품을 고르기 전 목록 줄의 둘째 줄 */
-export function searchLabel(s: ItemSearch | null): string {
+export function searchLabel(s: ItemSearch | null, fresh = false): string {
+  if (fresh) return '농수산물 시세로 확인(준비 중)'
   if (!s) return '상품 고르기 전'
   if (s.status === 'searching') return '후보 찾는 중'
   if (s.status === 'done') return `후보 ${s.candidateCount}개 찾음`
@@ -108,6 +110,13 @@ export function ratingNote(ratedAt: string | null, now: Date = new Date()): stri
   return ratedAt ? `다나와, ${checkedText(ratedAt, now)}` : '다나와(확인 시각 모름)'
 }
 
+/** 신선 품목: 다나와에서 찾지 않고 농수산물 시세(KAMIS, 계획 ③)로 확인한다(사용자 결정 2026-10-19).
+ *  product-search/handle.ts의 FRESH와 같은 목록이다. 바꾸면 양쪽을 함께 바꾼다. */
+const FRESH: ReadonlySet<Category> = new Set<Category>(['정육', '수산', '채소', '과일'])
+export function isFresh(c: Category): boolean {
+  return FRESH.has(c)
+}
+
 const RETRY_MS = 2 * 60_000
 
 /** '찾는 중'이 2분 넘게 그대로면 멈춘 것으로 본다(서버도 2분 뒤 다시 잡게 해 둠) */
@@ -123,7 +132,7 @@ export function toFind(
   nowMs: number,
 ): string[] {
   return items
-    .filter((i) => !i.boughtAt && !i.productKey)
+    .filter((i) => !i.boughtAt && !i.productKey && !isFresh(i.category))
     .filter((i) => {
       const s = searches.get(i.id)
       return !s || isStale(s, nowMs)

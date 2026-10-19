@@ -17,7 +17,7 @@ function deps(over: Partial<SearchDeps> = {}) {
     claims: [] as [string, string][],
   }
   const d: SearchDeps = {
-    loadItem: async (id) => ({ id, name: '비비고 왕교자', spec: '1.05kg', productId: null }),
+    loadItem: async (id) => ({ id, name: '비비고 왕교자', spec: '1.05kg', productId: null, category: '냉동' }),
     remembered: async () => null,
     claim: async (id, q) => {
       log.claims.push([id, q])
@@ -90,6 +90,14 @@ describe('product-search: 기억과 중복', () => {
     expect(log.urls).toEqual(['https://search.danawa.com/?query=%EB%B9%84%EB%B9%84%EA%B3%A0%20%EA%B9%80%EC%B9%98%EC%99%95%EA%B5%90%EC%9E%90'])
   })
 
+  it('신선 품목(정육·수산·채소·과일)은 다나와에서 찾지 않고 fresh로 끝낸다', async () => {
+    const { d, log } = deps({ loadItem: async (id) => ({ id, name: '당근', spec: null, productId: null, category: '채소' }) })
+    const res = await handle(post({ itemId: ITEM }), d)
+    expect(await res.json()).toEqual({ status: 'fresh' })
+    expect(log.claims).toHaveLength(0)
+    expect(log.urls).toHaveLength(0)
+  })
+
   it('2분 안에 이미 찾는 중이면(claim false) skipped, 다나와를 부르지 않는다', async () => {
     const { d, log } = deps({ claim: async () => false })
     const res = await handle(post({ itemId: ITEM }), d)
@@ -101,7 +109,7 @@ describe('product-search: 기억과 중복', () => {
     const a = deps()
     await handle(post({ itemId: ITEM }), a.d)
     expect(a.log.claims[0][1]).toBe('비비고 왕교자 1.05kg')
-    const b = deps({ loadItem: async (id) => ({ id, name: '우유', spec: null, productId: null }) })
+    const b = deps({ loadItem: async (id) => ({ id, name: '우유', spec: null, productId: null, category: '유제품' }) })
     await handle(post({ itemId: ITEM }), b.d)
     expect(b.log.claims[0][1]).toBe('우유')
   })
@@ -193,7 +201,7 @@ describe('product-search: 결과', () => {
 
   it('특수문자뿐인 검색어도 그대로 인코딩해 부르고, 결과가 없으면 none', async () => {
     const { d, log } = deps({
-      loadItem: async (id) => ({ id, name: '%%&&', spec: null, productId: null }),
+      loadItem: async (id) => ({ id, name: '%%&&', spec: null, productId: null, category: '기타' }),
       fetchHtml: async (url) => {
         log.urls.push(url)
         return { status: 200, text: NONE_HTML }

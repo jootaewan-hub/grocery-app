@@ -77,6 +77,7 @@ const PRICE_WON = /^([\d,]+)원$/
 const BARE_NUM = /^[\d,]+$/
 const UNIT = /^([\d,]+)원\/(\d*(?:g|kg|ml|l|개|매|입))$/i
 const MALLS = /^([\d,]+)몰$/
+const PAY = /(네이버|카카오|토스|스마일|쿠|삼성|애플)페이|페이코/
 
 /** "N개 | (가격원 | 가격 원) | 단위가격 | (M몰 | M 몰)" 묶음을 읽는다. 순서가 출처마다 조금 달라 앞뒤 몇 칸 안에서 찾는다. */
 function readVariants(ts: string[]): DanawaVariant[] {
@@ -205,7 +206,9 @@ function readOffers(html: string): DanawaOffer[] {
   for (const row of rows) {
     const logo = row.match(/class="box__logo"([\s\S]*?)<div class="box__price/)
     const alt = logo?.[1].match(/alt=['"]([^'"]{1,40})['"]/)
-    const seller = (alt ? unescape(alt[1]) : logo ? textOf(logo[1]) : '').trim()
+    // 로고가 없으면 글자에서 몰 이름만 고른다(앞의 기호, 뒤의 결제 수단 표시는 뺀다)
+    const named = logo ? tokens(logo[1]).find((t) => /^[가-힣A-Za-z0-9]/.test(t) && !PAY.test(t)) : undefined
+    const seller = (alt ? unescape(alt[1]) : (named ?? '')).trim()
     const priceHtml = row.match(/class="sell-price"([\s\S]*?)<\/div>/)
     const price = priceHtml ? num((textOf(priceHtml[1]).match(/[\d,]+/) ?? [''])[0]) : null
     const delHtml = row.match(/class="box__delivery"([\s\S]*?)<\/div>/)

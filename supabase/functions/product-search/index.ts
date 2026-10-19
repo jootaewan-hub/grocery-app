@@ -9,9 +9,9 @@ Deno.serve(async (req) => {
   const user = userClient(req).schema('grocery')
   const res = await handle(req, {
     loadItem: async (id) => {
-      const { data, error } = await user.from('items').select('id, name, spec, product_id').eq('id', id).maybeSingle()
+      const { data, error } = await user.from('items').select('id, name, spec, product_id, category').eq('id', id).maybeSingle()
       if (error) throw error
-      return data ? { id: data.id, name: data.name, spec: data.spec, productId: data.product_id } : null
+      return data ? { id: data.id, name: data.name, spec: data.spec, productId: data.product_id, category: data.category } : null
     },
     remembered: async (id) => {
       const { data, error } = await user.rpc('remembered_product', { p_item: id })

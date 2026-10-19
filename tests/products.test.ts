@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkedText, farmLine, isStale, kstDay, priceRowText, ratingNote, safetySummary, searchLabel, SHORTCUTS, splitLines, toFind, type ItemSearch, type PriceLine, type SafetyRecord } from '../src/lib/products'
+import { checkedText, farmLine, isFresh, isStale, kstDay, priceRowText, ratingNote, safetySummary, searchLabel, SHORTCUTS, splitLines, toFind, type ItemSearch, type PriceLine, type SafetyRecord } from '../src/lib/products'
 import type { Item } from '../src/lib/types'
 
 const line = (p: Partial<PriceLine>): PriceLine => ({
@@ -73,6 +73,11 @@ describe('목록 줄의 후보 상태 문구', () => {
     expect(searchLabel({ status: 'error', candidateCount: 0, updatedAt: 't' })).toBe('후보를 찾지 못했어요(다시 시도)')
     expect(searchLabel(null)).toBe('상품 고르기 전')
   })
+
+  it('신선 품목은 후보 상태 대신 시세로 확인한다고 쓴다(이전에 찾은 후보가 있어도)', () => {
+    expect(searchLabel({ status: 'done', candidateCount: 40, updatedAt: 't' }, true)).toBe('농수산물 시세로 확인(준비 중)')
+    expect(searchLabel(null, true)).toBe('농수산물 시세로 확인(준비 중)')
+  })
 })
 
 describe('품목 상세 문구', () => {
@@ -129,6 +134,13 @@ describe('자동 후보 찾기 대상', () => {
     const items = [it_({ id: 'a' })]
     expect(toFind(items, new Map(), new Map([['a', NOW - 60_000]]), NOW)).toEqual([])
     expect(toFind(items, new Map(), new Map([['a', NOW - 121_000]]), NOW)).toEqual(['a'])
+  })
+
+  it('신선 품목(정육·수산·채소·과일)은 다나와에서 찾지 않는다(농수산물 시세로 확인)', () => {
+    const items = [it_({ id: 'a', category: '채소' }), it_({ id: 'b', category: '과일' }), it_({ id: 'c', category: '정육' }), it_({ id: 'd', category: '수산' }), it_({ id: 'e', category: '냉동' })]
+    expect(toFind(items, new Map(), new Map(), NOW)).toEqual(['e'])
+    expect(isFresh('채소')).toBe(true)
+    expect(isFresh('유제품')).toBe(false)
   })
 
   it('찾는 중이 2분 넘게 멈춘 품목은 다시 찾는다', () => {

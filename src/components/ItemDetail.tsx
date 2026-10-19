@@ -5,10 +5,12 @@ import { won } from '../lib/format'
 import {
   checkedText,
   farmLine,
+  isFresh,
   kstDay,
   priceRowText,
   ratingNote,
   safetySummary,
+  searchLabel,
   SHORTCUTS,
   splitLines,
   type ItemDetailData,
@@ -130,12 +132,14 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
               <div className="detail-head">
                 {data.product?.imageUrl && <img className="cand-img" src={data.product.imageUrl} alt="" />}
                 <div className="cand-title">
-                  <p className="cand-name">{data.product ? `${data.product.name} (${qty}개)` : '상품 고르기 전'}</p>
+                  <p className="cand-name">{data.product ? `${data.product.name} (${qty}개)` : searchLabel(null, isFresh(item.category))}</p>
                   <p className="cand-rating">{item.category}</p>
                 </div>
-                <button type="button" className="btn-secondary detail-change" onClick={onChangeProduct}>
-                  {data.product ? '상품 바꾸기' : '상품 고르기'}
-                </button>
+                {(data.product || !isFresh(item.category)) && (
+                  <button type="button" className="btn-secondary detail-change" onClick={onChangeProduct}>
+                    {data.product ? '상품 바꾸기' : '상품 고르기'}
+                  </button>
+                )}
               </div>
 
               <section className="summary detail-summary" aria-label="요약">
@@ -176,7 +180,9 @@ export default function ItemDetail({ item, store, onChangeProduct, onClose }: Pr
                       {split.same.length + split.other.length > 0 ? ` ${checkedText(data.lines[0].checkedAt)}에 확인한 값을 보여 드려요.` : ''}
                     </p>
                   )}
-                  {!data.product && <p className="cand-state">상품을 고르면 가격을 확인해요.</p>}
+                  {!data.product && (
+                    <p className="cand-state">{isFresh(item.category) ? '농수산물 시세는 다음 단계에서 붙여요.' : '상품을 고르면 가격을 확인해요.'}</p>
+                  )}
                   {data.product && !checking && split.same.length === 0 && split.other.length === 0 && !lastFailed && (
                     <p className="cand-state">가격 확인 못 함</p>
                   )}

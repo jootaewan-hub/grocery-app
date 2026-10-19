@@ -84,6 +84,12 @@ describe('다나와 상품 페이지', () => {
     expect(p.offers.every((o) => o.price > 0 && o.seller.length > 0)).toBe(true)
   })
 
+  it('판매처 이름은 몰 이름만: 기호와 결제 수단 표시는 뺀다', () => {
+    const p = parseDanawaProduct(read('product-5643303.html'), '5643303')
+    expect(p.offers.map((o) => o.seller)).toContain('리니어스토어')
+    expect(p.offers.every((o) => !/^[^가-힣A-Za-z0-9]/.test(o.seller) && !o.seller.includes('네이버페이'))).toBe(true)
+  })
+
   it('무료배송은 delivery 0', () => {
     const p = parseDanawaProduct(read('product-5643303.html'), '5643303')
     expect(p.offers.some((o) => o.delivery === 0)).toBe(true)

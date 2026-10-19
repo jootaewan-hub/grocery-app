@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type MouseEvent, type PointerEvent, type ReactNode } from 'react'
 import { BADGE } from '../lib/alerts'
-import { checkedText, isStale, searchLabel, type ItemPrice, type ItemSearch } from '../lib/products'
+import { checkedText, isFresh, isStale, searchLabel, type ItemPrice, type ItemSearch } from '../lib/products'
 import type { AlertLevel, Item, Member } from '../lib/types'
 import { josa, won } from '../lib/format'
 
@@ -118,7 +118,9 @@ export default function ListRow({
   // 상품을 아직 안 골랐고 후보 찾기가 끝났으면(못 찾았어도 다시 검색할 수 있게) 고르기 버튼
   // '찾는 중'이 2분 넘게 멈췄으면 다시 시도할 수 있게 고르기를 켠다
   const stale = search !== null && isStale(search)
-  const canPick = !bought && item.productKey === null && search !== null && (search.status !== 'searching' || stale)
+  // 신선 품목은 다나와 상품을 고르지 않는다(농수산물 시세로 확인)
+  const fresh = isFresh(item.category)
+  const canPick = !bought && !fresh && item.productKey === null && search !== null && (search.status !== 'searching' || stale)
 
   const second: ReactNode[] = []
   if (bought) {
@@ -133,7 +135,7 @@ export default function ListRow({
         </span>,
       )
     }
-    second.push(item.productKey === null ? (stale ? '후보를 찾지 못했어요(다시 시도)' : searchLabel(search)) : (productName ?? '상품 고름'))
+    second.push(item.productKey === null ? (stale && !fresh ? '후보를 찾지 못했어요(다시 시도)' : searchLabel(search, fresh)) : (productName ?? '상품 고름'))
     if (showNoCompare) second.push('비교 못 함')
   }
 

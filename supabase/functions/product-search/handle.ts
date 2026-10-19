@@ -5,7 +5,7 @@ import { danawaSearchUrl, DanawaParseError, parseDanawaSearch, type DanawaSearch
 
 export type SearchDeps = {
   /** 사용자 권한(RLS)으로 읽는다: 남의 품목이면 null */
-  loadItem(itemId: string): Promise<{ id: string; name: string; spec: string | null; productId: string | null } | null>
+  loadItem(itemId: string): Promise<{ id: string; name: string; spec: string | null; productId: string | null; category: string } | null>
   /** 가구 기억(name_key로 product_choices, 사용자 권한) */
   remembered(itemId: string): Promise<{ productId: string; qty: number } | null>
   /** 2분 안에 'searching'이 아니면 'searching'으로 바꾸고 true */
@@ -24,6 +24,8 @@ export type SearchDeps = {
 
 export const MAX_WAIT_MS = 60_000
 const MAX_QUERY = 60
+// 신선 품목은 다나와에서 찾지 않는다(농수산물 시세로 확인, 사용자 결정 2026-10-19). src/lib/products.ts의 FRESH와 같다.
+const FRESH = new Set(['정육', '수산', '채소', '과일'])
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 const json = (status: number, body: unknown) =>
@@ -43,6 +45,7 @@ export async function handle(req: Request, deps: SearchDeps): Promise<Response> 
 
   const item = await deps.loadItem(itemId)
   if (!item) return json(403, { error: 'forbidden' })
+  if (FRESH.has(item.category)) return json(200, { status: 'fresh' })
 
   if (!given) {
     const mem = await deps.remembered(itemId)
