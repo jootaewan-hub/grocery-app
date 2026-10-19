@@ -119,6 +119,15 @@ describe('보안', () => {
     }
   })
 
+  it('같은 고유 id가 두 번 오면 하나만 남긴다(upsert 한 묶음에 같은 키가 겹치지 않게)', async () => {
+    const impl: FetchLike = async () => ({
+      ok: true, status: 200,
+      json: async () => ({ I0490: { total_count: '3', row: [{ RTRVLDSUSE_SEQ: '1', PRDTNM: 'a' }, { RTRVLDSUSE_SEQ: '1', PRDTNM: 'b' }, { RTRVLDSUSE_SEQ: '2', PRDTNM: 'c' }], RESULT: { CODE: 'INFO-000' } } }),
+    })
+    const res = await fetchService('I0490', 'KEY', impl)
+    expect(res.rows.map((r) => [r.source_id, r.product_name])).toEqual([['1', 'b'], ['2', 'c']])
+  })
+
   it('한 페이지에 1000건이 넘게 와도 1000건까지만 쓴다', async () => {
     const impl: FetchLike = async () => ({
       ok: true, status: 200,

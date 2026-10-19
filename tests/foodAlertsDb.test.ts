@@ -118,6 +118,30 @@ describe('식약처 대조', () => {
     expect(rows.map((r) => r.product_name)).toEqual(['냉동만두 세트'])
   })
 
+  it('등록일을 읽지 못한 회수도 대조한다', async () => {
+    await db.query(`insert into grocery.food_alerts (source, source_id, product_name, registered_on, raw) values ('I0490','n','비비고 왕교자', null, '{}')`)
+    await item(hhA, A, '비비고 왕교자')
+    expect(await alertsFor(A)).toHaveLength(1)
+  })
+
+  it('쇼핑몰 상품명을 붙여 넣어도 수량·광고 단어를 빼고 맞춘다', async () => {
+    await alert({ id: '1', product: '비비고 왕교자 1.05kg', maker: 'CJ제일제당' })
+    await item(hhA, A, '[CJ] 비비고 왕교자 1.05kg x 2봉 무료배송')
+    expect(await alertsFor(A)).toHaveLength(1)
+  })
+
+  it('단어 과반이 맞고 하나는 제품명에 있으면 비슷한 기록', async () => {
+    await alert({ id: '1', product: '비비고 왕교자 1.05kg', maker: 'CJ제일제당' })
+    await item(hhA, A, 'CJ 왕교자 만두') // cj(업체)·왕교자(제품명) 2/3
+    expect(await alertsFor(A)).toHaveLength(1)
+  })
+
+  it('제품명과 업체명 경계를 넘는 글자 조각은 맞추지 않는다', async () => {
+    await alert({ id: '1', product: '국산 고추', maker: '장수식품' })
+    await item(hhA, A, '고추 추장') // '추장'은 '고추'+'장수식품'을 이어 붙여야만 생기는 조각
+    expect(await alertsFor(A)).toHaveLength(0)
+  })
+
   it('산 품목은 뺀다', async () => {
     await alert({ id: '1', product: '비비고 왕교자' })
     await item(hhA, A, '비비고 왕교자', true)

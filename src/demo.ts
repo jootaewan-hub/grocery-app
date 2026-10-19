@@ -66,7 +66,11 @@ export function demoSeed(): { me: Membership; items: Item[]; alerts: AlertsResul
         level: 'similar',
       },
     ]),
-    syncedAt: { I0490: '2026-10-15T22:01:00Z', I2620: '2026-10-15T22:01:00Z', I2715: '2026-10-15T22:01:00Z' },
+    // 확인 시각은 늘 '방금 전'(캡처에서 정상 상태가 보이게)
+    syncedAt: (() => {
+      const t = new Date(Date.now() - 3600_000).toISOString()
+      return { I0490: t, I2620: t, I2715: t }
+    })(),
   }
   return { me, items, alerts }
 }

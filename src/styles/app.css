@@ -93,6 +93,9 @@ button { touch-action: manipulation; -webkit-user-select: none; user-select: non
 .alert-facts dt { color: var(--ink-muted); }
 .alert-facts dd { margin: 0; overflow-wrap: anywhere; }
 .alert-range { margin: 16px 0 0; font-size: 13px; color: var(--ink-muted); }
+/* 목록 위 식약처 확인 상태. 늦어지면 흙빛 글자로(색과 문장으로 함께 알린다). */
+.check-status { margin: 0 0 12px; font-size: 13px; color: var(--ink-muted); }
+.check-status.is-warn { color: var(--clay); font-weight: 600; }
 
 .only-wide { display: none; }
 @media (min-width: 960px) {

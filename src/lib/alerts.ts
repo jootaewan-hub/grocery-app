@@ -80,6 +80,29 @@ export function koDay(v: string): string {
   return `${m}월 ${day}일`
 }
 
+const fullFmt = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric' })
+
+/** 'YYYY-MM-DD' → '2025년 11월 3일'. 오래된 등록일이 최근처럼 읽히지 않게 연도까지 쓴다. */
+export function koFullDay(v: string): string {
+  const parts = fullFmt.formatToParts(new Date(`${v}T00:00:00+09:00`))
+  const get = (t: string) => parts.find((p) => p.type === t)?.value
+  return `${get('year')}년 ${get('month')}월 ${get('day')}일`
+}
+
+const STALE_MS = 48 * 3600_000
+
+/** 목록 위 한 줄: 세 서비스를 모두 48시간 안에 확인했으면 가장 오래된 날짜를, 아니면 늦어졌다고 알린다. */
+export function listStatus(syncedAt: AlertsResult['syncedAt'], now: Date = new Date()): { tone: 'ok' | 'warn'; text: string } {
+  const times = SOURCES.map((s) => syncedAt[s]).filter((t): t is string => Boolean(t))
+  if (times.length === 0) return { tone: 'warn', text: '식약처 목록을 아직 확인하지 못했어요' }
+  const oldest = times.reduce((a, b) => (Date.parse(a) <= Date.parse(b) ? a : b))
+  const newest = times.reduce((a, b) => (Date.parse(a) >= Date.parse(b) ? a : b))
+  if (times.length < SOURCES.length || now.getTime() - Date.parse(oldest) > STALE_MS) {
+    return { tone: 'warn', text: `식약처 목록 확인이 늦어지고 있어요. 마지막 확인 ${koDay(newest)}` }
+  }
+  return { tone: 'ok', text: `식약처 목록 ${koDay(oldest)} 확인` }
+}
+
 /** '식약처 회수·판매중지 10월 20일 확인, …' — 확인 기록이 없으면 그렇게 쓴다. */
 export function checkedRange(syncedAt: AlertsResult['syncedAt']): string {
   const parts = SOURCES.filter((s) => syncedAt[s]).map((s) => `${SOURCE_NAME[s]} ${koDay(syncedAt[s]!)} 확인`)

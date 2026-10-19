@@ -44,8 +44,12 @@ grant select on grocery.sync_runs to authenticated;
 grant select, insert, update, delete on grocery.food_alerts, grocery.sync_runs to service_role;
 
 -- 내 가구의 아직 사지 않은 품목과 비슷한 식약처 기록. RLS를 그대로 따르도록 security invoker.
--- 규칙: 품목 이름의 2글자 이상 단어가 모두 (제품명+업체명)에 들어 있고, 그중 하나는 제품명에 들어 있다.
--- 기간: I0490·I2620은 등록 365일 이내, I2715는 차단 종료 전. 오늘은 current_date(UTC 기준, 하루 차이는 허용).
+-- 놓치는 쪽이 더 위험하다(화면 설계 8-2절). 규칙:
+--   품목 이름을 단어로 나눠 소문자·한글·영문·숫자만 남기고, 2글자 미만·수량(600g, 2봉, x2)·광고 단어(무료배송 등)는 뺀다.
+--   단어 하나는 제품명에 있어야 하고, 제품명이나 업체명(따로따로 본다)에 들어 있는 단어가 과반이어야 한다.
+--   단어가 하나면 그 단어가 제품명에 있어야 한다. 두 이름을 이어 붙이지 않으므로 경계를 넘는 글자 조각은 맞추지 않는다.
+-- 기간: I0490·I2620은 등록 365일 이내이거나 등록일을 읽지 못한 것, I2715는 차단 종료 전. 오늘은 current_date(UTC, 하루 차이 허용).
+-- 성능: CTE를 materialized로 한 번씩만 계산한다(아니면 품목마다 경고 전체와 정규식을 다시 돈다).
 -- 바코드가 아직 없어 level은 늘 'similar'(바코드 일치 'record'는 바코드 담기 계획에서).
 create function grocery.item_alerts()
 returns table (
@@ -57,25 +61,29 @@ stable
 security invoker
 set search_path = ''
 as $$
-  with toks as (
+  with toks as materialized (
     select i.id as item_id,
            array(
-             select t from (
-               select regexp_replace(lower(w), '[^가-힣a-z0-9]', '', 'g') as t
+             select replace(t, '.', '') from (
+               -- 점은 1.05kg 같은 수량을 알아보려고 잠시 남겼다가 뺀다
+               select regexp_replace(lower(w), '[^가-힣a-z0-9.]', '', 'g') as t
                from regexp_split_to_table(i.name, '\s+') as w
              ) s
-             where char_length(t) >= 2
+             where char_length(replace(t, '.', '')) >= 2
+               and t !~ '^x?[0-9.]+(g|kg|mg|ml|l|구|개입|개|포기|단|마리|팩|봉|병|캔|장|롤|모|판|망|근|입|ea)?$'
+               and replace(t, '.', '') not in
+                 ('무료배송', '당일배송', '특가', '행사', '기획', '증정', '세트', '묶음', '정품', '최저가', '할인', '대용량')
            ) as tokens
     from grocery.items i
     where i.bought_at is null
   ),
-  cand as (
+  cand as materialized (
     -- raw는 authenticated가 못 읽으므로 쓰는 열만 고른다(security invoker)
     select a.source, a.source_id, a.product_name, a.maker, a.reason, a.grade, a.pack_unit, a.registered_on,
            regexp_replace(lower(a.product_name), '[^가-힣a-z0-9]', '', 'g') as pn,
            regexp_replace(lower(coalesce(a.maker, '')), '[^가-힣a-z0-9]', '', 'g') as mk
     from grocery.food_alerts a
-    where (a.source in ('I0490', 'I2620') and a.registered_on >= current_date - 365)
+    where (a.source in ('I0490', 'I2620') and (a.registered_on is null or a.registered_on >= current_date - 365))
        or (a.source = 'I2715' and (a.ends_on is null or a.ends_on >= current_date))
   )
   select t.item_id, c.source, c.source_id, c.product_name, c.maker,
@@ -83,8 +91,9 @@ as $$
   from toks t
   join cand c
     on cardinality(t.tokens) > 0
-   and not exists (select 1 from unnest(t.tokens) k where strpos(c.pn || c.mk, k) = 0)
    and exists (select 1 from unnest(t.tokens) k where strpos(c.pn, k) > 0)
+   and (select count(*) from unnest(t.tokens) k where strpos(c.pn, k) > 0 or strpos(c.mk, k) > 0) * 2
+       > cardinality(t.tokens)
   order by c.registered_on desc nulls last
 $$;
 

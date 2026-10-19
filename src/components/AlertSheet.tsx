@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { checkedRange, koDay, SHEET_HINT, SOURCE_NAME, type AlertsResult, type FoodAlert } from '../lib/alerts'
+import { checkedRange, koFullDay, SHEET_HINT, SOURCE_NAME, type AlertsResult, type FoodAlert } from '../lib/alerts'
 import { josa } from '../lib/format'
 
 const CLOSE_MS = 250
@@ -67,7 +67,7 @@ export default function AlertSheet({ itemName, alerts, syncedAt, onClose }: Prop
                   {a.packUnit && <><dt>포장 단위</dt><dd>{a.packUnit}</dd></>}
                   {a.reason && <><dt>사유</dt><dd>{a.reason}</dd></>}
                   {a.grade && <><dt>등급</dt><dd>{a.grade}</dd></>}
-                  {a.registeredOn && <><dt>등록일</dt><dd className="num">{koDay(a.registeredOn)}</dd></>}
+                  {a.registeredOn && <><dt>등록일</dt><dd className="num">{koFullDay(a.registeredOn)}</dd></>}
                   <dt>출처</dt><dd>{SOURCE_NAME[a.source]}</dd>
                 </dl>
               </li>

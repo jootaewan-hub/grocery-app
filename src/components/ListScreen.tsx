@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
-import { EMPTY_ALERTS, type AlertsResult } from '../lib/alerts'
+import { EMPTY_ALERTS, listStatus, type AlertsResult } from '../lib/alerts'
 import { groupByCategory, groupByWhere, summarize } from '../lib/listView'
 import type { ParsedItem } from '../lib/parse'
 import { loadListView, saveListView, type ListViewMode } from '../lib/prefs'
@@ -37,7 +37,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
   const noticeTimer = useRef<number | undefined>(undefined)
   const opener = useRef<HTMLElement | null>(null)
   const seq = useRef(0)
-  const [alerts, setAlerts] = useState<AlertsResult>(EMPTY_ALERTS)
+  const [alerts, setAlerts] = useState<AlertsResult | null>(null) // null: 아직 한 번도 못 불러옴
   const [alertsFailed, setAlertsFailed] = useState(false)
   const [alertItem, setAlertItem] = useState<Item | null>(null)
   const alertSeq = useRef(0)
@@ -232,9 +232,13 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
 
   const visible = useMemo(() => (items ?? []).filter((i) => !hidden.has(i.id)), [items, hidden])
   const sections = useMemo(
-    () => (view === 'category' ? groupByCategory(visible, alerts.levels) : groupByWhere(visible, alerts.levels, NO_PRICES)),
-    [view, visible, alerts.levels],
+    () => {
+      const levels = (alerts ?? EMPTY_ALERTS).levels
+      return view === 'category' ? groupByCategory(visible, levels) : groupByWhere(visible, levels, NO_PRICES)
+    },
+    [view, visible, alerts],
   )
+  const status = alerts ? listStatus(alerts.syncedAt) : null
   const sum = summarize(visible, NO_PRICES)
   const ready = loadState === 'ready' && items !== null
 
@@ -293,6 +297,10 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
               <button type="button" aria-pressed={view === 'where'} onClick={() => chooseView('where')}>어디서 살지</button>
             </div>
 
+            {status && !alertsFailed && (
+              <p className={status.tone === 'ok' ? 'check-status' : 'check-status is-warn'} role="status">{status.text}</p>
+            )}
+
             {alertsFailed && (
               <div className="stale" role="status">
                 <p>식약처 목록을 불러오지 못했어요.</p>
@@ -324,7 +332,7 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
                         item={item}
                         members={me.members}
                         showNoCompare={s.key === 'store'}
-                        alertLevel={alerts.levels.get(item.id) ?? null}
+                        alertLevel={alerts?.levels.get(item.id) ?? null}
                         onAlert={(e) => {
                           opener.current = e.currentTarget
                           setAlertItem(item)
@@ -365,8 +373,8 @@ export default function ListScreen({ store, me, onSignOut }: Props) {
       {alertItem && (
         <AlertSheet
           itemName={alertItem.name}
-          alerts={alerts.byItem.get(alertItem.id) ?? []}
-          syncedAt={alerts.syncedAt}
+          alerts={alerts?.byItem.get(alertItem.id) ?? []}
+          syncedAt={alerts?.syncedAt ?? {}}
           onClose={() => {
             setAlertItem(null)
             opener.current?.focus({ preventScroll: true })

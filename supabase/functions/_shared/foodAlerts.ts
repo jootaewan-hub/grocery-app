@@ -118,7 +118,8 @@ export async function fetchService(
   key: string,
   fetchImpl: FetchLike,
 ): Promise<{ rows: FoodAlertRow[]; total: number }> {
-  const rows: FoodAlertRow[] = []
+  // 같은 고유 id가 두 번 오면 뒤의 것만 남긴다: upsert 한 묶음에 같은 키가 겹치면 그 서비스 전체 저장이 실패한다.
+  const byId = new Map<string, FoodAlertRow>()
   let total: number | null = null
   for (let start = 1; total === null || start <= total; start += PAGE) {
     const end = total === null ? PAGE : Math.min(start + PAGE - 1, total)
@@ -136,8 +137,11 @@ export async function fetchService(
     }
     for (const r of (body?.row ?? []).slice(0, PAGE)) {
       const row = toAlertRow(service, r)
-      if (row) rows.push(row)
+      if (row) {
+        byId.delete(row.source_id) // 다시 넣어 순서를 마지막 위치로
+        byId.set(row.source_id, row)
+      }
     }
   }
-  return { rows, total: total ?? 0 }
+  return { rows: [...byId.values()], total: total ?? 0 }
 }
